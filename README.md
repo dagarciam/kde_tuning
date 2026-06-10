@@ -55,6 +55,7 @@ El repositorio respalda y restaura automáticamente (con backup previo):
 - Atajos de teclado globales (`kglobalshortcutsrc`).
 - Reglas de ventanas y efectos de KWin (`kwinrc`).
 - Esquema de colores, fuentes e iconos (`kdeglobals`).
+- Sesión de Plasma en **X11 por defecto** (`~/.dmrc` y `state.conf` de SDDM cuando está disponible).
 
 ---
 

@@ -61,6 +61,41 @@ else
     echo -e "${GREEN}X11 support detected.${NC}"
 fi
 
+# Force Plasma X11 as default session to avoid Conky issues on Wayland
+echo -e "${YELLOW}Configuring Plasma X11 as default session...${NC}"
+X11_SESSION_FILE=""
+for session_file in plasma.desktop plasmax11.desktop plasma-x11.desktop; do
+    if [ -f "/usr/share/xsessions/$session_file" ]; then
+        X11_SESSION_FILE="$session_file"
+        break
+    fi
+done
+
+if [ -z "$X11_SESSION_FILE" ]; then
+    echo -e "${RED}Warning: Could not find a Plasma X11 session file in /usr/share/xsessions.${NC}"
+else
+    cat > ~/.dmrc <<EOF
+[Desktop]
+Session=$X11_SESSION_FILE
+EOF
+    chmod 644 ~/.dmrc
+    echo -e "${GREEN}User session default set to ${X11_SESSION_FILE}.${NC}"
+
+    if command -v sudo &> /dev/null; then
+        if sudo mkdir -p /var/lib/sddm/.config && sudo tee /var/lib/sddm/.config/state.conf > /dev/null <<EOF
+[Last]
+Session=$X11_SESSION_FILE
+User=$USER
+EOF
+        then
+            echo -e "${GREEN}SDDM default session updated to ${X11_SESSION_FILE}.${NC}"
+        else
+            echo -e "${YELLOW}Could not update SDDM state file automatically.${NC}"
+            echo "You can set it manually in /var/lib/sddm/.config/state.conf"
+        fi
+    fi
+fi
+
 # --- 2. External Repositories ---
 echo -e "${YELLOW}[2/7] Checking external repositories...${NC}"
 

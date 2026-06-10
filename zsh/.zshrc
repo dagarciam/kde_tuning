@@ -1,12 +1,22 @@
+# Always use the repository prompt config without interactive wizard.
+typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
 # --- Manjaro Visuals ---
-if command -v fastfetch &> /dev/null; then
+# Run fastfetch after initialization to keep Powerlevel10k instant prompt clean.
+autoload -Uz add-zsh-hook
+_run_fastfetch_once() {
+  if command -v fastfetch &> /dev/null; then
     fastfetch --logo manjaro --logo-color-1 green --logo-color-2 white
-fi
+  fi
+  add-zsh-hook -d precmd _run_fastfetch_once
+}
+add-zsh-hook precmd _run_fastfetch_once
 
 # Source manjaro-zsh-configuration
 if [[ -e /usr/share/zsh/manjaro-zsh-config ]]; then
