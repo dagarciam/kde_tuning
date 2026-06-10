@@ -1,6 +1,6 @@
-# KDE Tuning & Desktop Customization
+# KDE Tuning & Desktop Customization (Manjaro Edition)
 
-Este repositorio contiene los archivos de configuración, temas y scripts necesarios para replicar mi entorno de escritorio en KDE Plasma.
+Este repositorio contiene los archivos de configuración, temas y scripts necesarios para replicar mi entorno de escritorio profesional en Manjaro KDE Plasma.
 
 ## 🚀 Instalación Rápida
 
@@ -17,59 +17,50 @@ chmod +x setup.sh
 
 ## 📦 Contenido del Repositorio
 
-### 0. Gestión de Dependencias
+### 0. Gestión de Dependencias Automatizada
 El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; de lo contrario, utiliza **pacman**. Instala automáticamente:
-- `conky`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
-- `fzf`, `zoxide`.
-- `plasma-workspace-x11` (Soporte X11 para Plasma 6).
-- `lm_sensors`, `wireless_tools`.
+- **Core:** `conky`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
+- **Productividad:** `fzf`, `zoxide`, `fastfetch`, `lazygit`, `git-delta`.
+- **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6).
+- **Hardware:** `lm_sensors` (Temperaturas), `wireless_tools` (SSID WiFi).
 
-### 1. Conky (Tema Mimosa)
+### 1. Conky (Tema Mimosa - Tuneado)
 - **Ubicación:** `conky/Mimosa`
-- **Características:**
-  - Monitoreo de **GPU AMD Dedicada** (`card1`) con icono de chip personalizado.
-  - Sensor de temperatura de CPU (`hwmon4`).
-  - Transparencia ARGB optimizada para KDE.
+- **Mejoras aplicadas:**
+  - Soporte para **Dual GPU**: Monitoreo de la GPU dedicada **RX 9070** (`card1`).
+  - Icono de **Chip (GPU)** personalizado que cubre el icono de batería original.
+  - Sensor de temperatura de CPU vinculado a `hwmon4`.
+  - Transparencia ARGB real habilitada (sin fondo negro en KDE).
   - Clima configurado para **Tlalpan, México**.
-- **Autostart:** Incluye el archivo `.desktop` para iniciar con la sesión.
-- **Nota sobre Sesión:** Requiere **X11** para mostrar correctamente los anillos de Lua (Xlib). El script de inicio verifica esto automáticamente.
+  - **Validación de Sesión:** El script `start.sh` verifica que estés en X11 antes de iniciar.
 
-### 2. Terminal (Zsh & Powerlevel10k)
-- **Plugins incluidos:**
-  - `zsh-autosuggestions`: Sugerencias inteligentes basadas en el historial.
+### 2. Terminal Maestra (Zsh & Powerlevel10k)
+- **Plugins Visuales (p10k segments):**
+  - `pamac_updates`: Icono de caja (``) con contador de actualizaciones pendientes (con caché de 30min).
+  - `ram` & `load`: Monitoreo de recursos en tiempo real en el prompt.
+  - `gitstatus`: Integración asíncrona ultra-rápida para Git.
+- **Plugins de Comportamiento (GitHub):**
+  - `zsh-autosuggestions`: Sugerencias basadas en historial.
   - `zsh-syntax-highlighting`: Resaltado de comandos en tiempo real.
-  - **Sudo Shortcut**: Pulsa `Esc` dos veces para añadir `sudo` al comando actual.
-- **Herramientas de productividad:**
-  - `fastfetch`: Información del sistema con el logo de Manjaro al abrir la terminal.
-  - `zoxide`: Un comando `cd` inteligente (`alias cd="z"`).
-  - `fzf`: Buscador difuso (Fuzzy Finder) para historial (`Ctrl+R`).
-- **Plugins de Powerlevel10k para Manjaro:**
-  - `pamac_updates`: Un contador de actualizaciones pendientes directamente en tu prompt.
-  - `ram`: Uso de memoria en tiempo real en la terminal.
-  - `load`: Carga de CPU en tiempo real.
-- **Aliases para Manjaro:** `update`, `clean`, `install`, `remove` vinculados a `pamac`.
-- **Git Master Workflow:**
-  - `lazygit` (`lg`): Interfaz TUI profesional para Git.
-  - `git-delta`: Diffs con resaltado de sintaxis y formato mejorado.
-  - Alias rápidos: `gst` (status), `ga` (add), `gcm` (commit), `gp` (push), `glog` (log visual).
-- **Archivos:** `.zshrc`, `.p10k.zsh`
+- **Herramientas de Flujo de Trabajo:**
+  - `fastfetch`: Resumen de hardware al abrir la terminal.
+  - `lazygit` (`lg`): TUI profesional para Git.
+  - `git-delta`: Diffs con resaltado de sintaxis.
+  - **Sudo Shortcut**: `Esc` + `Esc` añade `sudo` al comando actual.
+  - `zoxide`: Navegación inteligente de carpetas (`cd` -> `z`).
 
 ### 3. Configuración de KDE Plasma
-- **Ubicación:** `plasma/`
-- **Backups de:**
-  - Distribución de paneles y widgets (`plasma-org.kde.plasma.desktop-appletsrc`).
-  - Atajos de teclado globales (`kglobalshortcutsrc`).
-  - Reglas de ventanas y efectos de KWin (`kwinrc`).
-  - Esquema de colores y fuentes (`kdeglobals`).
-
-### 4. Temas Externos (Instalación automática)
-El script `setup.sh` clona e instala automáticamente:
-- **Orchis KDE Theme**: Tema global oscuro y elegante.
-- **Tela Circle Icons**: Pack de iconos circulares.
-- **Powerlevel10k**: El motor del prompt de la terminal.
+El repositorio respalda y restaura automáticamente (con backup previo):
+- Distribución de paneles y widgets (`plasma-org.kde.plasma.desktop-appletsrc`).
+- Atajos de teclado globales (`kglobalshortcutsrc`).
+- Reglas de ventanas y efectos de KWin (`kwinrc`).
+- Esquema de colores, fuentes e iconos (`kdeglobals`).
 
 ---
 
-## 🛠️ Notas Técnicas
-- El script de instalación crea **backups automáticos** de tus configuraciones previas de KDE en `~/.config/kde_backup_[fecha]`.
-- Se recomienda reiniciar la sesión (Logout/Login) después de ejecutar el script para que todos los cambios de Plasma se apliquen correctamente.
+## 🛠️ Notas del Desarrollador
+- El script de instalación crea backups en `~/.config/kde_backup_[fecha]`.
+- **Importante:** La transparencia de Conky y los anillos de Lua requieren una sesión de **X11**.
+- Los alias de sistema (`update`, `install`, `clean`) usan **pamac** para incluir soporte AUR por defecto.
+
+*Última actualización: 10 de Junio, 2026*
