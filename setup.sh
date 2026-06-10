@@ -28,14 +28,14 @@ PKGS=(
     "jq"
     "curl"
     "git"
-    "zsh",
-    "python",
-    "fzf",
-    "zoxide",
-    "fastfetch",
-    "lazygit",
-    "git-delta",
-    "plasma-workspace-x11",
+    "zsh"
+    "python"
+    "fzf"
+    "zoxide"
+    "fastfetch"
+    "lazygit"
+    "git-delta"
+    "plasma-workspace-x11"
     "lm_sensors"
     "wireless_tools"
 )
