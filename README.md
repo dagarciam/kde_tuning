@@ -4,17 +4,25 @@ Este repositorio contiene los archivos de configuración, temas y scripts necesa
 
 ## 🚀 Instalación Rápida
 
-Para aplicar toda la configuración en un sistema nuevo o restaurar el actual:
+Para aplicar toda la configuración en un sistema nuevo o restaurar el actual (requiere **pacman** o **yay**):
 
 ```bash
 git clone git@github.com:dagarciam/kde_tuning.git
 cd kde_tuning
+chmod +x setup.sh
 ./setup.sh
 ```
 
 ---
 
 ## 📦 Contenido del Repositorio
+
+### 0. Gestión de Dependencias
+El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; de lo contrario, utiliza **pacman**. Instala automáticamente:
+- `conky`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
+- `fzf`, `zoxide`.
+- `plasma-workspace-x11` (Soporte X11 para Plasma 6).
+- `lm_sensors`, `wireless_tools`.
 
 ### 1. Conky (Tema Mimosa)
 - **Ubicación:** `conky/Mimosa`

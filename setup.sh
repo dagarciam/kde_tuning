@@ -18,18 +18,48 @@ echo -e "${BLUE}Starting KDE Tuning Setup...${NC}"
 # Get the script directory
 REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# --- 0. System Checks (X11 Support) ---
-echo -e "${YELLOW}[0/6] Checking system compatibility...${NC}"
+# --- 0. Install System Dependencies ---
+echo -e "${YELLOW}[0/7] Installing system dependencies...${NC}"
+
+# Define dependencies
+PKGS=(
+    "conky"
+    "playerctl"
+    "jq"
+    "curl"
+    "git"
+    "zsh"
+    "python"
+    "fzf"
+    "zoxide"
+    "plasma-workspace-x11"
+    "lm_sensors"
+    "wireless_tools"
+)
+
+# Detect package manager (favor yay if available)
+if command -v yay &> /dev/null; then
+    INSTALL_CMD="yay -S --needed --noconfirm"
+else
+    INSTALL_CMD="sudo pacman -S --needed --noconfirm"
+fi
+
+echo -e "Using command: ${BLUE}$INSTALL_CMD${NC}"
+$INSTALL_CMD "${PKGS[@]}"
+
+# --- 1. System Checks (X11 Support) ---
+echo -e "${YELLOW}[1/7] Checking system compatibility...${NC}"
 
 # Check for X11 session support (Crucial for Plasma 6+)
 if ! pacman -Qs plasma-workspace-x11 &> /dev/null; then
     echo -e "${RED}Warning: plasma-workspace-x11 not detected.${NC}"
     echo "This is required for Conky's Lua/Xlib rings to work in modern Plasma."
-    echo "Try: sudo pacman -S plasma-workspace-x11"
+else
+    echo -e "${GREEN}X11 support detected.${NC}"
 fi
 
-# --- 1. External Dependencies ---
-echo -e "${YELLOW}[1/6] Checking external dependencies...${NC}"
+# --- 2. External Repositories ---
+echo -e "${YELLOW}[2/7] Checking external repositories...${NC}"
 
 # Powerlevel10k
 if [ ! -d ~/powerlevel10k ]; then
@@ -48,17 +78,6 @@ if [ ! -d ~/.zsh-plugins/zsh-syntax-highlighting ]; then
     git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ~/.zsh-plugins/zsh-syntax-highlighting
 fi
 
-# Tools (zoxide and fzf)
-if ! command -v zoxide &> /dev/null; then
-    echo "Installing zoxide..."
-    curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
-fi
-if ! command -v fzf &> /dev/null; then
-    echo "Installing fzf..."
-    git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-    ~/.fzf/install --all
-fi
-
 # KDE Themes
 if [ ! -d ~/Orchis-kde ]; then
     echo "Installing Orchis KDE Theme..."
@@ -71,16 +90,16 @@ if [ ! -d ~/tela-circle-icon-theme ]; then
     ~/tela-circle-icon-theme/install.sh -a
 fi
 
-# --- 2. Fonts Installation ---
-echo -e "${YELLOW}[2/6] Installing fonts...${NC}"
+# --- 3. Fonts Installation ---
+echo -e "${YELLOW}[3/7] Installing fonts...${NC}"
 mkdir -p ~/.local/share/fonts
 cp "$REPO_DIR"/conky/Mimosa/fonts/*.ttf ~/.local/share/fonts/
 python3 -m zipfile -e "$REPO_DIR"/conky/Mimosa/fonts/Abel.zip ~/.local/share/fonts/
 fc-cache -fv > /dev/null
 echo -e "${GREEN}Fonts installed successfully.${NC}"
 
-# --- 3. Conky Setup ---
-echo -e "${YELLOW}[3/6] Setting up Conky Mimosa...${NC}"
+# --- 4. Conky Setup ---
+echo -e "${YELLOW}[4/7] Setting up Conky Mimosa...${NC}"
 mkdir -p ~/.config/conky
 cp -r "$REPO_DIR"/conky/Mimosa ~/.config/conky/
 chmod +x ~/.config/conky/Mimosa/start.sh
@@ -91,8 +110,8 @@ mkdir -p ~/.config/autostart
 cp "$REPO_DIR"/conky/conky-mimosa.desktop ~/.config/autostart/
 echo -e "${GREEN}Conky setup complete.${NC}"
 
-# --- 4. Zsh Configuration ---
-echo -e "${YELLOW}[4/6] Applying Zsh & Powerlevel10k config...${NC}"
+# --- 5. Zsh Configuration ---
+echo -e "${YELLOW}[5/7] Applying Zsh & Powerlevel10k config...${NC}"
 [ -f ~/.zshrc ] && cp ~/.zshrc ~/.zshrc.bak
 [ -f ~/.p10k.zsh ] && cp ~/.p10k.zsh ~/.p10k.zsh.bak
 
@@ -100,8 +119,8 @@ cp "$REPO_DIR"/zsh/.zshrc ~/.zshrc
 cp "$REPO_DIR"/zsh/.p10k.zsh ~/.p10k.zsh
 echo -e "${GREEN}Zsh configuration applied.${NC}"
 
-# --- 5. KDE Plasma Settings ---
-echo -e "${YELLOW}[5/6] Restoring KDE Plasma configuration...${NC}"
+# --- 6. KDE Plasma Settings ---
+echo -e "${YELLOW}[6/7] Restoring KDE Plasma configuration...${NC}"
 PLASMA_FILES=(
     "plasma-org.kde.plasma.desktop-appletsrc"
     "plasmashellrc"
@@ -122,6 +141,6 @@ done
 echo -e "${GREEN}KDE Plasma settings restored.${NC}"
 
 echo -e "${BLUE}====================================================${NC}"
-echo -e "${GREEN}Setup finished! Remember to use X11 session for Conky.${NC}"
+echo -e "${GREEN}Setup finished! Enjoy your tuned environment.${NC}"
 echo -e "${YELLOW}Please RESTART your session or Logout/Login.${NC}"
 echo -e "${BLUE}====================================================${NC}"
