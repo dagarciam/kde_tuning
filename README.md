@@ -38,9 +38,12 @@ El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; d
 - **Plugins incluidos:**
   - `zsh-autosuggestions`: Sugerencias inteligentes basadas en el historial.
   - `zsh-syntax-highlighting`: Resaltado de comandos en tiempo real.
+  - **Sudo Shortcut**: Pulsa `Esc` dos veces para añadir `sudo` al comando actual.
 - **Herramientas de productividad:**
-  - `zoxide`: Un comando `cd` inteligente que aprende tus rutas frecuentes.
+  - `fastfetch`: Información del sistema con el logo de Manjaro al abrir la terminal.
+  - `zoxide`: Un comando `cd` inteligente (`alias cd="z"`).
   - `fzf`: Buscador difuso (Fuzzy Finder) para historial (`Ctrl+R`).
+- **Aliases para Manjaro:** `update`, `clean`, `install`, `remove` vinculados a `pamac`.
 - **Archivos:** `.zshrc`, `.p10k.zsh`
 
 ### 3. Configuración de KDE Plasma

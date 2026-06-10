@@ -3,6 +3,11 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+# --- Manjaro Visuals ---
+if command -v fastfetch &> /dev/null; then
+    fastfetch --logo manjaro --logo-color-1 green --logo-color-2 white
+fi
+
 # Source manjaro-zsh-configuration
 if [[ -e /usr/share/zsh/manjaro-zsh-config ]]; then
   source /usr/share/zsh/manjaro-zsh-config
@@ -12,15 +17,15 @@ if [[ -e /usr/share/zsh/manjaro-zsh-prompt ]]; then
   source /usr/share/zsh/manjaro-zsh-prompt
 fi
 
-# Powerlevel10k
+# --- Powerlevel10k ---
 source ~/powerlevel10k/powerlevel10k.zsh-theme
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# Plugins
+# --- Plugins ---
 [ -f ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
 [ -f ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-# Tools
+# --- Tools ---
 if command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"
     alias cd="z"
@@ -28,7 +33,24 @@ fi
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-# Aliases
+# --- Sudo ESC-ESC Shortcut ---
+sudo-command-line() {
+    [[ -z $BUFFER ]] && zle up-history
+    if [[ $BUFFER != sudo\ * ]]; then
+        BUFFER="sudo $BUFFER"
+        CURSOR=$(( CURSOR + 5 ))
+    fi
+}
+zle -N sudo-command-line
+bindkey "\e\e" sudo-command-line
+
+# --- Aliases & Functions ---
 alias ls="ls --color=auto"
 alias grep="grep --color=auto"
-alias update="sudo pacman -Syu"
+alias update="pamac upgrade --aur"
+alias clean="pamac clean --keep 2"
+alias install="pamac install"
+alias remove="pamac remove"
+
+# Custom path
+export PATH=$PATH:$HOME/.local/bin
