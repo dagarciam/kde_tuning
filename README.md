@@ -1,33 +1,55 @@
-# Desktop Customization (KDE & Conky)
+# KDE Tuning & Desktop Customization
 
-Este repositorio contiene los archivos de configuración y temas utilizados para personalizar mi entorno de escritorio KDE Plasma.
+Este repositorio contiene los archivos de configuración, temas y scripts necesarios para replicar mi entorno de escritorio en KDE Plasma.
 
-## Contenido
+## 🚀 Instalación Rápida
 
-### 1. Conky (Mimosa Theme)
+Para aplicar toda la configuración en un sistema nuevo o restaurar el actual:
+
+```bash
+git clone git@github.com:dagarciam/kde_tuning.git
+cd kde_tuning
+./setup.sh
+```
+
+---
+
+## 📦 Contenido del Repositorio
+
+### 1. Conky (Tema Mimosa)
 - **Ubicación:** `conky/Mimosa`
-- **Configuración personalizada:**
-  - Soporte para **AMD GPU** (`card1`).
+- **Características:**
+  - Monitoreo de **GPU AMD Dedicada** (`card1`) con icono de chip personalizado.
   - Sensor de temperatura de CPU (`hwmon4`).
-  - Transparencia ARGB para KDE.
-  - Ciudad: Tlalpan, México.
+  - Transparencia ARGB optimizada para KDE.
+  - Clima configurado para **Tlalpan, México**.
 - **Autostart:** Incluye el archivo `.desktop` para iniciar con la sesión.
 
-### 2. Zsh & Powerlevel10k
+### 2. Terminal (Zsh & Powerlevel10k)
+- **Plugins incluidos:**
+  - `zsh-autosuggestions`: Sugerencias inteligentes basadas en el historial.
+  - `zsh-syntax-highlighting`: Resaltado de comandos en tiempo real.
+- **Herramientas de productividad:**
+  - `zoxide`: Un comando `cd` inteligente que aprende tus rutas frecuentes.
+  - `fzf`: Buscador difuso (Fuzzy Finder) para historial (`Ctrl+R`).
 - **Archivos:** `.zshrc`, `.p10k.zsh`
-- Configuración visual para la terminal.
 
 ### 3. Configuración de KDE Plasma
 - **Ubicación:** `plasma/`
-- **Archivos clave:**
-  - `plasma-org.kde.plasma.desktop-appletsrc`: Configuración de paneles y widgets (distribución de tu escritorio).
-  - `plasmashellrc`: Configuración general del shell de Plasma.
-  - `kglobalshortcutsrc`: Todos tus atajos de teclado globales.
-  - `kwinrc`: Reglas de ventanas y efectos de escritorio (KWin).
-  - `kdeglobals`: Colores, fuentes e iconos generales.
+- **Backups de:**
+  - Distribución de paneles y widgets (`plasma-org.kde.plasma.desktop-appletsrc`).
+  - Atajos de teclado globales (`kglobalshortcutsrc`).
+  - Reglas de ventanas y efectos de KWin (`kwinrc`).
+  - Esquema de colores y fuentes (`kdeglobals`).
 
-## Instalación rápida
-1. Copiar la carpeta `conky/Mimosa` a `~/.config/conky/`.
-2. Instalar las fuentes incluidas en `conky/Mimosa/fonts`.
-3. Copiar los archivos de `zsh` a `$HOME`.
-4. Para restaurar KDE: Copiar los archivos de `plasma/` a `~/.config/` (se recomienda hacer backup de los originales primero).
+### 4. Temas Externos (Instalación automática)
+El script `setup.sh` clona e instala automáticamente:
+- **Orchis KDE Theme**: Tema global oscuro y elegante.
+- **Tela Circle Icons**: Pack de iconos circulares.
+- **Powerlevel10k**: El motor del prompt de la terminal.
+
+---
+
+## 🛠️ Notas Técnicas
+- El script de instalación crea **backups automáticos** de tus configuraciones previas de KDE en `~/.config/kde_backup_[fecha]`.
+- Se recomienda reiniciar la sesión (Logout/Login) después de ejecutar el script para que todos los cambios de Plasma se apliquen correctamente.
