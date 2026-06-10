@@ -44,6 +44,10 @@ El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; d
   - `zoxide`: Un comando `cd` inteligente (`alias cd="z"`).
   - `fzf`: Buscador difuso (Fuzzy Finder) para historial (`Ctrl+R`).
 - **Aliases para Manjaro:** `update`, `clean`, `install`, `remove` vinculados a `pamac`.
+- **Git Master Workflow:**
+  - `lazygit` (`lg`): Interfaz TUI profesional para Git.
+  - `git-delta`: Diffs con resaltado de sintaxis y formato mejorado.
+  - Alias rápidos: `gst` (status), `ga` (add), `gcm` (commit), `gp` (push), `glog` (log visual).
 - **Archivos:** `.zshrc`, `.p10k.zsh`
 
 ### 3. Configuración de KDE Plasma

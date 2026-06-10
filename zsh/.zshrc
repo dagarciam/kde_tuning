@@ -52,5 +52,21 @@ alias clean="pamac clean --keep 2"
 alias install="pamac install"
 alias remove="pamac remove"
 
+# --- Git Enhancements ---
+alias lg="lazygit"
+alias gst="git status"
+alias gco="git checkout"
+alias gcm="git commit -m"
+alias ga="git add"
+alias gp="git push"
+alias gl="git pull"
+alias glog="git log --oneline --graph --decorate"
+alias gd="git diff"
+
+# Use delta for diffs if available
+if command -v delta &> /dev/null; then
+    export GIT_PAGER="delta"
+fi
+
 # Custom path
 export PATH=$PATH:$HOME/.local/bin
