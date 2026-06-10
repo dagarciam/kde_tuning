@@ -94,9 +94,10 @@
     chezmoi_shell           # chezmoi shell (https://www.chezmoi.io/)
     vi_mode                 # vi mode (you don't need this if you've enabled prompt_char)
     # vpn_ip                # virtual private network indicator
-    # load                  # CPU load
+    load                    # CPU load
     # disk_usage            # disk usage
-    # ram                   # free RAM
+    ram                     # free RAM
+    pamac_updates           # custom: pamac updates (Manjaro)
     # swap                  # used swap
     todo                    # todo items (https://github.com/todotxt/todo.txt-cli)
     timewarrior             # timewarrior tracking status (https://timewarrior.net/)
@@ -1726,6 +1727,32 @@
   # can slow down prompt by 1-2 milliseconds, so it's better to keep it turned off unless you
   # really need it.
   typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
+
+  ################################################################
+  # [ pamac_updates: pamac updates ] #
+  ################################################################
+  function prompt_pamac_updates() {
+    # Cache the update count for 30 minutes (1800 seconds)
+    local cache_file="/tmp/p10k_pamac_updates_cache_${USER}"
+    local current_time=$(date +%s)
+    local last_update=0
+    local count=0
+
+    if [[ -f "$cache_file" ]]; then
+      last_update=$(stat -c %Y "$cache_file")
+      count=$(cat "$cache_file" 2>/dev/null || echo 0)
+    fi
+
+    # If cache is older than 30 mins or doesn't exist, update it in background
+    if (( current_time - last_update > 1800 )) || [[ ! -f "$cache_file" ]]; then
+      # Run check in background to avoid blocking the prompt
+      (pamac checkupdates -a | wc -l > "$cache_file" &)
+    fi
+
+    if [[ "$count" != "0" && -n "$count" ]]; then
+      p10k segment -f 106 -i '' -t "$count"
+    fi
+  }
 
   # If p10k is already loaded, reload configuration.
   # This works even with POWERLEVEL9K_DISABLE_HOT_RELOAD=true.

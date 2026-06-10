@@ -43,6 +43,10 @@ El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; d
   - `fastfetch`: Información del sistema con el logo de Manjaro al abrir la terminal.
   - `zoxide`: Un comando `cd` inteligente (`alias cd="z"`).
   - `fzf`: Buscador difuso (Fuzzy Finder) para historial (`Ctrl+R`).
+- **Plugins de Powerlevel10k para Manjaro:**
+  - `pamac_updates`: Un contador de actualizaciones pendientes directamente en tu prompt.
+  - `ram`: Uso de memoria en tiempo real en la terminal.
+  - `load`: Carga de CPU en tiempo real.
 - **Aliases para Manjaro:** `update`, `clean`, `install`, `remove` vinculados a `pamac`.
 - **Git Master Workflow:**
   - `lazygit` (`lg`): Interfaz TUI profesional para Git.
