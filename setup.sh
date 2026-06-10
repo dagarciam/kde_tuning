@@ -98,12 +98,7 @@ configure_x11_session() {
     echo -e "${YELLOW}[2/8] Configuring Plasma X11 as default session...${NC}"
 
     if [ ! -f /usr/share/xsessions/plasmax11.desktop ]; then
-        echo -e "${YELLOW}plasmax11.desktop not found. Installing plasma-workspace-x11...${NC}"
-        if command -v yay &> /dev/null; then
-            yay -S --needed --noconfirm plasma-workspace-x11 || true
-        else
-            run_as_root pacman -S --needed --noconfirm plasma-workspace-x11 || true
-        fi
+        echo -e "${YELLOW}Warning: plasmax11.desktop not found after installation. SDDM config may not work until next reboot.${NC}"
     fi
 
     local conf_dir="/etc/sddm.conf.d"
@@ -159,6 +154,15 @@ install_external_repos() {
         echo -e "${GREEN}✓ Tela Circle icon theme already installed${NC}"
     fi
 
+    if [[ ! -d "$REAL_HOME/Vimix-cursors" ]]; then
+        echo -e "${BLUE}Cloning Vimix cursors theme...${NC}"
+        git clone https://github.com/vinceliuice/Vimix-cursors.git "$REAL_HOME/Vimix-cursors"
+        echo -e "${BLUE}Installing Vimix cursors...${NC}"
+        (cd "$REAL_HOME/Vimix-cursors" && HOME="$REAL_HOME" bash install.sh)
+    else
+        echo -e "${GREEN}✓ Vimix cursors already installed${NC}"
+    fi
+
     echo -e "${GREEN}External repositories setup complete.${NC}"
 }
 
@@ -207,6 +211,83 @@ restore_plasma_config() {
         [[ -f "$REAL_HOME/.config/$file" ]] && cp "$REAL_HOME/.config/$file" "$BACKUP_DIR"/
         cp "$REPO_DIR"/plasma/"$file" "$REAL_HOME/.config/$file"
     done
+
+    # Set Vimix cursor theme in kdeglobals and kcminputrc
+    local kwrite
+    if command -v kwriteconfig6 &> /dev/null; then
+        kwrite="kwriteconfig6"
+    elif command -v kwriteconfig5 &> /dev/null; then
+        kwrite="kwriteconfig5"
+    fi
+
+    if [[ -n "$kwrite" ]]; then
+        "$kwrite" --file "$REAL_HOME/.config/kdeglobals"  --group Icons --key cursorTheme "Vimix-cursors"
+        "$kwrite" --file "$REAL_HOME/.config/kcminputrc"  --group Mouse --key cursorTheme "Vimix-cursors"
+        echo -e "${GREEN}Cursor theme set to Vimix-cursors.${NC}"
+    else
+        # Fallback: write directly to config files
+        mkdir -p "$REAL_HOME/.config"
+        if grep -q "^\[Icons\]" "$REAL_HOME/.config/kdeglobals" 2>/dev/null; then
+            sed -i '/^\[Icons\]/,/^\[/{s/^cursorTheme=.*/cursorTheme=Vimix-cursors/}' "$REAL_HOME/.config/kdeglobals"
+        else
+            printf '\n[Icons]\ncursorTheme=Vimix-cursors\n' >> "$REAL_HOME/.config/kdeglobals"
+        fi
+        if grep -q "^\[Mouse\]" "$REAL_HOME/.config/kcminputrc" 2>/dev/null; then
+            sed -i '/^\[Mouse\]/,/^\[/{s/^cursorTheme=.*/cursorTheme=Vimix-cursors/}' "$REAL_HOME/.config/kcminputrc"
+        else
+            printf '\n[Mouse]\ncursorTheme=Vimix-cursors\n' >> "$REAL_HOME/.config/kcminputrc"
+        fi
+        echo -e "${GREEN}Cursor theme set to Vimix-cursors (fallback method).${NC}"
+    fi
+
+    # Set cursor theme for X11 (GTK apps + X server)
+    mkdir -p "$REAL_HOME/.icons/default"
+    cat > "$REAL_HOME/.icons/default/index.theme" <<EOF
+[Icon Theme]
+Name=Default
+Comment=Default cursor theme
+Inherits=Vimix-cursors
+EOF
+
+    if grep -q "Xcursor.theme" "$REAL_HOME/.Xresources" 2>/dev/null; then
+        sed -i 's/^Xcursor\.theme:.*/Xcursor.theme: Vimix-cursors/' "$REAL_HOME/.Xresources"
+    else
+        printf '\nXcursor.theme: Vimix-cursors\nXcursor.size: 24\n' >> "$REAL_HOME/.Xresources"
+    fi
+
+    # Export XCURSOR_THEME for all X11 session applications
+    if grep -q "XCURSOR_THEME" "$REAL_HOME/.xprofile" 2>/dev/null; then
+        sed -i 's/^export XCURSOR_THEME=.*/export XCURSOR_THEME=Vimix-cursors/' "$REAL_HOME/.xprofile"
+    else
+        printf '\nexport XCURSOR_THEME=Vimix-cursors\nexport XCURSOR_SIZE=24\n' >> "$REAL_HOME/.xprofile"
+    fi
+
+    # GTK 2
+    mkdir -p "$REAL_HOME/.config"
+    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.gtkrc-2.0" 2>/dev/null; then
+        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name="Vimix-cursors"/' "$REAL_HOME/.gtkrc-2.0"
+    else
+        printf '\ngtk-cursor-theme-name="Vimix-cursors"\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.gtkrc-2.0"
+    fi
+
+    # GTK 3
+    mkdir -p "$REAL_HOME/.config/gtk-3.0"
+    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.config/gtk-3.0/settings.ini" 2>/dev/null; then
+        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name=Vimix-cursors/' "$REAL_HOME/.config/gtk-3.0/settings.ini"
+    else
+        printf '\n[Settings]\ngtk-cursor-theme-name=Vimix-cursors\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.config/gtk-3.0/settings.ini"
+    fi
+
+    # GTK 4
+    mkdir -p "$REAL_HOME/.config/gtk-4.0"
+    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.config/gtk-4.0/settings.ini" 2>/dev/null; then
+        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name=Vimix-cursors/' "$REAL_HOME/.config/gtk-4.0/settings.ini"
+    else
+        printf '\n[Settings]\ngtk-cursor-theme-name=Vimix-cursors\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.config/gtk-4.0/settings.ini"
+    fi
+
+    echo -e "${GREEN}X11 cursor theme configured (X11, GTK2/3/4, session env).${NC}"
+
     echo -e "${GREEN}KDE Plasma settings restored.${NC}"
 }
 
@@ -219,13 +300,13 @@ apply_session_changes() {
         echo -e "${BLUE}SDDM is already configured for Plasma X11.${NC}"
     else
         echo -e "${GREEN}You are on X11. Restarting Plasma Shell...${NC}"
-        if command -v kquitapp6 &> /dev/null; then
-            kquitapp6 plasmashell 2>/dev/null || true
-            sleep 1
+        pkill plasmashell 2>/dev/null || true
+        sleep 1
+        if command -v kstart6 &> /dev/null; then
             kstart6 plasmashell > /dev/null 2>&1 || true
+        elif command -v kstart5 &> /dev/null; then
+            kstart5 plasmashell > /dev/null 2>&1 || true
         else
-            pkill plasmashell 2>/dev/null || true
-            sleep 1
             nohup plasmashell > /dev/null 2>&1 &
         fi
     fi
