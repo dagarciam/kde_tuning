@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Conky Mimosa
+Comment=Launch Mimosa Conky Theme
+Exec=/home/dagarciam/.config/conky/Mimosa/start.sh
+Icon=conky
+Terminal=false
+StartupNotify=false
+Categories=System;Monitor;
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel

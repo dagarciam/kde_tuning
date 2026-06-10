@@ -1,0 +1,8 @@
+# Ignore temporary files
+*.tmp
+*.log
+.DS_Store
+
+# Weather cache
+conky/Mimosa/scripts/weather.json
+.cache/
