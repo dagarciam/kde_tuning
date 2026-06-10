@@ -24,6 +24,7 @@ cd kde_tuning
   - Transparencia ARGB optimizada para KDE.
   - Clima configurado para **Tlalpan, México**.
 - **Autostart:** Incluye el archivo `.desktop` para iniciar con la sesión.
+- **Nota sobre Sesión:** Requiere **X11** para mostrar correctamente los anillos de Lua (Xlib). El script de inicio verifica esto automáticamente.
 
 ### 2. Terminal (Zsh & Powerlevel10k)
 - **Plugins incluidos:**

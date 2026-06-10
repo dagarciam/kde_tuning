@@ -10,6 +10,7 @@
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}Starting KDE Tuning Setup...${NC}"
@@ -17,8 +18,18 @@ echo -e "${BLUE}Starting KDE Tuning Setup...${NC}"
 # Get the script directory
 REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# --- 0. External Dependencies ---
-echo -e "${YELLOW}[0/5] Checking external dependencies...${NC}"
+# --- 0. System Checks (X11 Support) ---
+echo -e "${YELLOW}[0/6] Checking system compatibility...${NC}"
+
+# Check for X11 session support (Crucial for Plasma 6+)
+if ! pacman -Qs plasma-workspace-x11 &> /dev/null; then
+    echo -e "${RED}Warning: plasma-workspace-x11 not detected.${NC}"
+    echo "This is required for Conky's Lua/Xlib rings to work in modern Plasma."
+    echo "Try: sudo pacman -S plasma-workspace-x11"
+fi
+
+# --- 1. External Dependencies ---
+echo -e "${YELLOW}[1/6] Checking external dependencies...${NC}"
 
 # Powerlevel10k
 if [ ! -d ~/powerlevel10k ]; then
@@ -60,16 +71,16 @@ if [ ! -d ~/tela-circle-icon-theme ]; then
     ~/tela-circle-icon-theme/install.sh -a
 fi
 
-# --- 1. Fonts Installation ---
-echo -e "${YELLOW}[1/5] Installing fonts...${NC}"
+# --- 2. Fonts Installation ---
+echo -e "${YELLOW}[2/6] Installing fonts...${NC}"
 mkdir -p ~/.local/share/fonts
 cp "$REPO_DIR"/conky/Mimosa/fonts/*.ttf ~/.local/share/fonts/
 python3 -m zipfile -e "$REPO_DIR"/conky/Mimosa/fonts/Abel.zip ~/.local/share/fonts/
 fc-cache -fv > /dev/null
 echo -e "${GREEN}Fonts installed successfully.${NC}"
 
-# --- 2. Conky Setup ---
-echo -e "${YELLOW}[2/5] Setting up Conky Mimosa...${NC}"
+# --- 3. Conky Setup ---
+echo -e "${YELLOW}[3/6] Setting up Conky Mimosa...${NC}"
 mkdir -p ~/.config/conky
 cp -r "$REPO_DIR"/conky/Mimosa ~/.config/conky/
 chmod +x ~/.config/conky/Mimosa/start.sh
@@ -80,17 +91,17 @@ mkdir -p ~/.config/autostart
 cp "$REPO_DIR"/conky/conky-mimosa.desktop ~/.config/autostart/
 echo -e "${GREEN}Conky setup complete.${NC}"
 
-# --- 3. Zsh Configuration ---
-echo -e "${YELLOW}[3/5] Applying Zsh & Powerlevel10k config...${NC}"
+# --- 4. Zsh Configuration ---
+echo -e "${YELLOW}[4/6] Applying Zsh & Powerlevel10k config...${NC}"
 [ -f ~/.zshrc ] && cp ~/.zshrc ~/.zshrc.bak
 [ -f ~/.p10k.zsh ] && cp ~/.p10k.zsh ~/.p10k.zsh.bak
 
 cp "$REPO_DIR"/zsh/.zshrc ~/.zshrc
 cp "$REPO_DIR"/zsh/.p10k.zsh ~/.p10k.zsh
-echo -e "${GREEN}Zsh configuration applied (backups created).${NC}"
+echo -e "${GREEN}Zsh configuration applied.${NC}"
 
-# --- 4. KDE Plasma Settings ---
-echo -e "${YELLOW}[4/5] Restoring KDE Plasma configuration...${NC}"
+# --- 5. KDE Plasma Settings ---
+echo -e "${YELLOW}[5/6] Restoring KDE Plasma configuration...${NC}"
 PLASMA_FILES=(
     "plasma-org.kde.plasma.desktop-appletsrc"
     "plasmashellrc"
@@ -111,6 +122,6 @@ done
 echo -e "${GREEN}KDE Plasma settings restored.${NC}"
 
 echo -e "${BLUE}====================================================${NC}"
-echo -e "${GREEN}Setup finished! Enjoy your tuned environment.${NC}"
-echo -e "${YELLOW}Please RESTART your terminal to see Zsh changes.${NC}"
+echo -e "${GREEN}Setup finished! Remember to use X11 session for Conky.${NC}"
+echo -e "${YELLOW}Please RESTART your session or Logout/Login.${NC}"
 echo -e "${BLUE}====================================================${NC}"
