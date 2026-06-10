@@ -9,27 +9,30 @@ fi
 
 # --- Manjaro Visuals ---
 # Run fastfetch after initialization to keep Powerlevel10k instant prompt clean.
-autoload -Uz add-zsh-hook
-_run_fastfetch_once() {
-  if command -v fastfetch &> /dev/null; then
-    fastfetch --logo manjaro --logo-color-1 green --logo-color-2 white
-  fi
-  add-zsh-hook -d precmd _run_fastfetch_once
-}
-add-zsh-hook precmd _run_fastfetch_once
+if [[ -o login ]]; then
+  autoload -Uz add-zsh-hook
+  _run_fastfetch_once() {
+    if command -v fastfetch &> /dev/null; then
+      fastfetch --logo manjaro --logo-color-1 green --logo-color-2 white
+    fi
+    add-zsh-hook -d precmd _run_fastfetch_once
+  }
+  add-zsh-hook precmd _run_fastfetch_once
+fi
 
 # Source manjaro-zsh-configuration
 if [[ -e /usr/share/zsh/manjaro-zsh-config ]]; then
   source /usr/share/zsh/manjaro-zsh-config
 fi
-# Use manjaro zsh prompt
-if [[ -e /usr/share/zsh/manjaro-zsh-prompt ]]; then
-  source /usr/share/zsh/manjaro-zsh-prompt
-fi
 
 # --- Powerlevel10k ---
-source ~/powerlevel10k/powerlevel10k.zsh-theme
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+if [[ -r ~/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+  source ~/powerlevel10k/powerlevel10k.zsh-theme
+  [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+elif [[ -e /usr/share/zsh/manjaro-zsh-prompt ]]; then
+  # Fallback only when user-local powerlevel10k is unavailable.
+  source /usr/share/zsh/manjaro-zsh-prompt
+fi
 
 # --- Plugins ---
 [ -f ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
