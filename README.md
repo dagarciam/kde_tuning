@@ -17,10 +17,17 @@ Este repositorio contiene los archivos de configuración y temas utilizados para
 - **Archivos:** `.zshrc`, `.p10k.zsh`
 - Configuración visual para la terminal.
 
-### 3. Temas de Plasma (Pendiente de organizar)
-- Espacio reservado para temas como Orchis y Tela Circle.
+### 3. Configuración de KDE Plasma
+- **Ubicación:** `plasma/`
+- **Archivos clave:**
+  - `plasma-org.kde.plasma.desktop-appletsrc`: Configuración de paneles y widgets (distribución de tu escritorio).
+  - `plasmashellrc`: Configuración general del shell de Plasma.
+  - `kglobalshortcutsrc`: Todos tus atajos de teclado globales.
+  - `kwinrc`: Reglas de ventanas y efectos de escritorio (KWin).
+  - `kdeglobals`: Colores, fuentes e iconos generales.
 
 ## Instalación rápida
 1. Copiar la carpeta `conky/Mimosa` a `~/.config/conky/`.
 2. Instalar las fuentes incluidas en `conky/Mimosa/fonts`.
 3. Copiar los archivos de `zsh` a `$HOME`.
+4. Para restaurar KDE: Copiar los archivos de `plasma/` a `~/.config/` (se recomienda hacer backup de los originales primero).
