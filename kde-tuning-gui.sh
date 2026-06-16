@@ -83,8 +83,8 @@ request_sudo() {
         --password "Administrator password required for system changes:" \
         2>/dev/null) || return 1
 
-    # Validate the password
-    if echo "$password" | sudo -S true 2>/dev/null; then
+    # Validate the password using a here-string to avoid exposing it in process listings
+    if sudo -S true <<< "$password" 2>/dev/null; then
         # Keep sudo alive
         sudo -v 2>/dev/null
         echo "$password"
@@ -212,7 +212,7 @@ do_rollback_ui() {
     local log_file
     log_file="$(mktemp /tmp/kde-tuning-rollback-XXXXXX.log)"
 
-    bash "$SETUP_SCRIPT" --rollback "$chosen" $dry_run_flag --gui-mode > "$log_file" 2>&1
+    bash "$SETUP_SCRIPT" --rollback "$chosen" ${dry_run_flag:+"$dry_run_flag"} --gui-mode > "$log_file" 2>&1
     local exit_code=$?
 
     local log_content
@@ -257,9 +257,9 @@ main() {
         exit 0
     fi
 
-    # KDialog returns quoted space-separated values; normalize to array
+    # KDialog returns space-separated quoted values; split safely without eval
     local selected_steps=()
-    eval "selected_steps=($raw_selection)"
+    read -r -a selected_steps <<< "$raw_selection"
 
     # --- Options toggles ---
     local options

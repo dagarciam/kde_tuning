@@ -304,8 +304,11 @@ preflight_checks() {
 
     # Only check dirs/files needed for the selected steps
     local check_all=false
+    local steps_needing_files=(deps repos fonts conky zsh plasma)
     for step in "${SELECTED_STEPS[@]}"; do
-        [[ "$step" == "deps" || "$step" == "repos" || "$step" == "fonts" || "$step" == "conky" || "$step" == "zsh" || "$step" == "plasma" ]] && check_all=true && break
+        for needs in "${steps_needing_files[@]}"; do
+            [[ "$step" == "$needs" ]] && check_all=true && break 2
+        done
     done
 
     if $check_all || [[ ${#SELECTED_STEPS[@]} -eq ${#ALL_STEPS[@]} ]]; then
@@ -654,11 +657,13 @@ restore_plasma_config() {
     echo "$backup_dir" > "$REAL_HOME/.config/.kde_last_backup"
 
     # Set Vimix cursor theme in kdeglobals and kcminputrc
-    local kwrite=""
+    local kwrite
     if command -v kwriteconfig6 &> /dev/null; then
         kwrite="kwriteconfig6"
     elif command -v kwriteconfig5 &> /dev/null; then
         kwrite="kwriteconfig5"
+    else
+        kwrite=""
     fi
 
     if [[ -n "$kwrite" ]]; then
