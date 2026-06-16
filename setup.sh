@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -Eeuo pipefail
+
 # ==============================================================================
 # KDE Tuning - Master Setup Script (Refactored)
 # Author: dagarciam
@@ -13,8 +15,24 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+error_exit() {
+    echo -e "${RED}ERROR: $*${NC}" >&2
+    exit 1
+}
+
+log_warn() {
+    echo -e "${YELLOW}Warning: $*${NC}"
+}
+
+log_step() {
+    echo -e "${BLUE}==> $*${NC}"
+}
+
 # Capture the real user and home directory BEFORE any sudo interactions
 if [ "$EUID" -eq 0 ]; then
+    if [ -z "${SUDO_USER:-}" ]; then
+        error_exit "Do not run this script as root directly. Run it as your desktop user (with sudo privileges)."
+    fi
     # Script invoked with sudo; use SUDO_USER to get the real user
     REAL_USER="${SUDO_USER:-root}"
     REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
@@ -58,6 +76,137 @@ run_as_root() {
     fi
 }
 
+ensure_cmd() {
+    local cmd="$1"
+    command -v "$cmd" &> /dev/null || error_exit "Required command not found: $cmd"
+}
+
+ensure_file() {
+    local file_path="$1"
+    [ -f "$file_path" ] || error_exit "Required file not found: $file_path"
+}
+
+ensure_dir() {
+    local dir_path="$1"
+    [ -d "$dir_path" ] || error_exit "Required directory not found: $dir_path"
+}
+
+detect_x11_package() {
+    local candidates=("plasma-x11-session" "plasma-workspace-x11")
+    local pkg
+
+    for pkg in "${candidates[@]}"; do
+        if pacman -Si "$pkg" &> /dev/null; then
+            echo "$pkg"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+preflight_checks() {
+    log_step "Running preflight checks"
+
+    ensure_cmd getent
+    ensure_cmd cp
+    ensure_cmd sed
+
+    [ -n "$REAL_USER" ] || error_exit "REAL_USER is empty"
+    [ -n "$REAL_HOME" ] || error_exit "REAL_HOME is empty"
+    [ -d "$REAL_HOME" ] || error_exit "Home directory does not exist: $REAL_HOME"
+
+    ensure_dir "$REPO_DIR/conky/Mimosa"
+    ensure_dir "$REPO_DIR/conky/Mimosa/fonts"
+    ensure_dir "$REPO_DIR/plasma"
+    ensure_dir "$REPO_DIR/zsh"
+    ensure_dir "$REPO_DIR/sddm"
+
+    ensure_file "$REPO_DIR/sddm/kde_settings.conf"
+    ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
+    ensure_file "$REPO_DIR/zsh/.zshrc"
+    ensure_file "$REPO_DIR/zsh/.p10k.zsh"
+    ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel.zip"
+}
+
+run_step() {
+    local name="$1"
+    shift
+    "$@" || error_exit "Step failed: $name"
+}
+
+set_single_line() {
+    local file_path="$1"
+    local match_regex="$2"
+    local desired_line="$3"
+    local tmp_file
+
+    mkdir -p "$(dirname "$file_path")"
+    touch "$file_path"
+    tmp_file="$(mktemp)"
+    grep -Ev "$match_regex" "$file_path" > "$tmp_file" || true
+    mv "$tmp_file" "$file_path"
+    printf '%s\n' "$desired_line" >> "$file_path"
+}
+
+set_ini_key() {
+    local file_path="$1"
+    local section="$2"
+    local key="$3"
+    local value="$4"
+    local tmp_file
+
+    mkdir -p "$(dirname "$file_path")"
+    touch "$file_path"
+    tmp_file="$(mktemp)"
+
+    awk -v section="$section" -v key="$key" -v value="$value" '
+        BEGIN {
+            in_section = 0
+            section_found = 0
+            key_written = 0
+        }
+
+        /^\[.*\]$/ {
+            if (in_section && !key_written) {
+                print key "=" value
+                key_written = 1
+            }
+            in_section = ($0 == "[" section "]")
+            if (in_section) {
+                section_found = 1
+            }
+            print
+            next
+        }
+
+        {
+            if (in_section && $0 ~ "^" key "=") {
+                if (!key_written) {
+                    print key "=" value
+                    key_written = 1
+                }
+                next
+            }
+            print
+        }
+
+        END {
+            if (in_section && !key_written) {
+                print key "=" value
+                key_written = 1
+            }
+            if (!section_found) {
+                print ""
+                print "[" section "]"
+                print key "=" value
+            }
+        }
+    ' "$file_path" > "$tmp_file"
+
+    mv "$tmp_file" "$file_path"
+}
+
 clone_repo_if_missing() {
     local target_dir="$1"
     local repo_url="$2"
@@ -77,12 +226,21 @@ clone_repo_if_missing() {
 
 install_dependencies() {
     echo -e "${YELLOW}[1/8] Installing system dependencies...${NC}"
-    
+
+    ensure_cmd pacman
+
     PKGS=(
         "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
-        "fastfetch" "lazygit" "git-delta" "plasma-workspace-x11" "lm_sensors"
+        "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools"
     )
+
+    local x11_pkg
+    if x11_pkg="$(detect_x11_package)"; then
+        PKGS+=("$x11_pkg")
+    else
+        log_warn "No known Plasma X11 package found in repos (checked: plasma-x11-session, plasma-workspace-x11)."
+    fi
 
     if command -v yay &> /dev/null; then
         INSTALL_CMD=(yay -S --needed --noconfirm)
@@ -92,6 +250,12 @@ install_dependencies() {
 
     echo -e "Using command: ${BLUE}${INSTALL_CMD[*]}${NC}"
     "${INSTALL_CMD[@]}" "${PKGS[@]}"
+
+    ensure_cmd git
+    ensure_cmd zsh
+    ensure_cmd python3
+    ensure_cmd conky
+    ensure_cmd fc-cache
 }
 
 configure_x11_session() {
@@ -169,6 +333,12 @@ install_external_repos() {
 install_fonts() {
     echo -e "${YELLOW}[4/8] Installing fonts...${NC}"
     mkdir -p "$REAL_HOME/.local/share/fonts"
+    ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel.zip"
+
+    if ! compgen -G "$REPO_DIR/conky/Mimosa/fonts/*.ttf" > /dev/null; then
+        error_exit "No .ttf files found in $REPO_DIR/conky/Mimosa/fonts"
+    fi
+
     cp "$REPO_DIR"/conky/Mimosa/fonts/*.ttf "$REAL_HOME/.local/share/fonts/"
     python3 -m zipfile -e "$REPO_DIR"/conky/Mimosa/fonts/Abel.zip "$REAL_HOME/.local/share/fonts/"
     fc-cache -fv > /dev/null
@@ -177,6 +347,9 @@ install_fonts() {
 
 setup_conky() {
     echo -e "${YELLOW}[5/8] Setting up Conky Mimosa...${NC}"
+    ensure_dir "$REPO_DIR/conky/Mimosa"
+    ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
+
     mkdir -p "$REAL_HOME/.config/conky"
     cp -r "$REPO_DIR"/conky/Mimosa "$REAL_HOME/.config/conky/"
     chmod +x "$REAL_HOME/.config/conky/Mimosa/start.sh"
@@ -189,6 +362,9 @@ setup_conky() {
 
 setup_zsh() {
     echo -e "${YELLOW}[6/8] Applying Zsh & Powerlevel10k config...${NC}"
+    ensure_file "$REPO_DIR/zsh/.zshrc"
+    ensure_file "$REPO_DIR/zsh/.p10k.zsh"
+
     [[ -f "$REAL_HOME/.zshrc" ]] && cp "$REAL_HOME/.zshrc" "$REAL_HOME/.zshrc.bak"
     [[ -f "$REAL_HOME/.p10k.zsh" ]] && cp "$REAL_HOME/.p10k.zsh" "$REAL_HOME/.p10k.zsh.bak"
 
@@ -204,10 +380,11 @@ restore_plasma_config() {
         "kglobalshortcutsrc" "kwinrc" "kdeglobals" "kactivitymanagerdrc"
     )
 
-    BACKUP_DIR="$REAL_HOME/.config/kde_backup_$(date +%Y%m%d_%H%M%S)"
+    BACKUP_DIR="$REAL_HOME/.config/kde_backup_$(date +%Y%m%d_%H%M%S_%N)"
     mkdir -p "$BACKUP_DIR"
 
     for file in "${PLASMA_FILES[@]}"; do
+        ensure_file "$REPO_DIR/plasma/$file"
         [[ -f "$REAL_HOME/.config/$file" ]] && cp "$REAL_HOME/.config/$file" "$BACKUP_DIR"/
         cp "$REPO_DIR"/plasma/"$file" "$REAL_HOME/.config/$file"
     done
@@ -249,42 +426,27 @@ Comment=Default cursor theme
 Inherits=Vimix-cursors
 EOF
 
-    if grep -q "Xcursor.theme" "$REAL_HOME/.Xresources" 2>/dev/null; then
-        sed -i 's/^Xcursor\.theme:.*/Xcursor.theme: Vimix-cursors/' "$REAL_HOME/.Xresources"
-    else
-        printf '\nXcursor.theme: Vimix-cursors\nXcursor.size: 24\n' >> "$REAL_HOME/.Xresources"
-    fi
+    set_single_line "$REAL_HOME/.Xresources" '^Xcursor\.theme:' 'Xcursor.theme: Vimix-cursors'
+    set_single_line "$REAL_HOME/.Xresources" '^Xcursor\.size:' 'Xcursor.size: 24'
 
     # Export XCURSOR_THEME for all X11 session applications
-    if grep -q "XCURSOR_THEME" "$REAL_HOME/.xprofile" 2>/dev/null; then
-        sed -i 's/^export XCURSOR_THEME=.*/export XCURSOR_THEME=Vimix-cursors/' "$REAL_HOME/.xprofile"
-    else
-        printf '\nexport XCURSOR_THEME=Vimix-cursors\nexport XCURSOR_SIZE=24\n' >> "$REAL_HOME/.xprofile"
-    fi
+    set_single_line "$REAL_HOME/.xprofile" '^export XCURSOR_THEME=' 'export XCURSOR_THEME=Vimix-cursors'
+    set_single_line "$REAL_HOME/.xprofile" '^export XCURSOR_SIZE=' 'export XCURSOR_SIZE=24'
 
     # GTK 2
     mkdir -p "$REAL_HOME/.config"
-    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.gtkrc-2.0" 2>/dev/null; then
-        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name="Vimix-cursors"/' "$REAL_HOME/.gtkrc-2.0"
-    else
-        printf '\ngtk-cursor-theme-name="Vimix-cursors"\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.gtkrc-2.0"
-    fi
+    set_single_line "$REAL_HOME/.gtkrc-2.0" '^gtk-cursor-theme-name=' 'gtk-cursor-theme-name="Vimix-cursors"'
+    set_single_line "$REAL_HOME/.gtkrc-2.0" '^gtk-cursor-theme-size=' 'gtk-cursor-theme-size=24'
 
     # GTK 3
     mkdir -p "$REAL_HOME/.config/gtk-3.0"
-    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.config/gtk-3.0/settings.ini" 2>/dev/null; then
-        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name=Vimix-cursors/' "$REAL_HOME/.config/gtk-3.0/settings.ini"
-    else
-        printf '\n[Settings]\ngtk-cursor-theme-name=Vimix-cursors\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.config/gtk-3.0/settings.ini"
-    fi
+    set_ini_key "$REAL_HOME/.config/gtk-3.0/settings.ini" "Settings" "gtk-cursor-theme-name" "Vimix-cursors"
+    set_ini_key "$REAL_HOME/.config/gtk-3.0/settings.ini" "Settings" "gtk-cursor-theme-size" "24"
 
     # GTK 4
     mkdir -p "$REAL_HOME/.config/gtk-4.0"
-    if grep -q "gtk-cursor-theme-name" "$REAL_HOME/.config/gtk-4.0/settings.ini" 2>/dev/null; then
-        sed -i 's/^gtk-cursor-theme-name=.*/gtk-cursor-theme-name=Vimix-cursors/' "$REAL_HOME/.config/gtk-4.0/settings.ini"
-    else
-        printf '\n[Settings]\ngtk-cursor-theme-name=Vimix-cursors\ngtk-cursor-theme-size=24\n' >> "$REAL_HOME/.config/gtk-4.0/settings.ini"
-    fi
+    set_ini_key "$REAL_HOME/.config/gtk-4.0/settings.ini" "Settings" "gtk-cursor-theme-name" "Vimix-cursors"
+    set_ini_key "$REAL_HOME/.config/gtk-4.0/settings.ini" "Settings" "gtk-cursor-theme-size" "24"
 
     echo -e "${GREEN}X11 cursor theme configured (X11, GTK2/3/4, session env).${NC}"
 
@@ -316,6 +478,8 @@ apply_session_changes() {
 
 echo -e "${BLUE}Starting KDE Tuning Setup...${NC}"
 
+preflight_checks
+
 # Only keep sudo alive if we're running with sudo privileges
 if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null; then
     if sudo -n true 2>/dev/null; then
@@ -329,13 +493,13 @@ if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null; then
     fi
 fi
 
-install_dependencies
-configure_x11_session
-install_external_repos
-install_fonts
-setup_conky
-setup_zsh
-restore_plasma_config
-apply_session_changes
+run_step "Install dependencies" install_dependencies
+run_step "Configure X11 session" configure_x11_session
+run_step "Install external repositories" install_external_repos
+run_step "Install fonts" install_fonts
+run_step "Setup Conky" setup_conky
+run_step "Setup Zsh" setup_zsh
+run_step "Restore Plasma configuration" restore_plasma_config
+run_step "Apply session changes" apply_session_changes
 
 echo -e "${GREEN}Setup finished! Please restart your session if you didn't logout already.${NC}"
