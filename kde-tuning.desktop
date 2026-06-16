@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.1
+Type=Application
+Name=KDE Tuning Installer
+GenericName=Desktop Customization Installer
+Comment=Apply or rollback KDE Plasma customizations (Conky, Zsh, themes, cursors)
+Exec=bash -c 'cd "$(dirname "$(readlink -f "%k")")" && ./kde-tuning-gui.sh'
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettings;System;
+Keywords=kde;plasma;setup;conky;zsh;theme;cursor;
+StartupNotify=true
