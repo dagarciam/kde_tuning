@@ -502,6 +502,7 @@ configure_x11_session() {
         log_dry "sed -i 's/User=.*/User=$REAL_USER/' $sddm_conf"
         log_dry "write /var/lib/sddm/state.conf"
         log_dry "write /var/lib/sddm/.config/state.conf"
+        log_dry "chown -R sddm:sddm /var/lib/sddm"
     else
         log_info "Copying SDDM template to $sddm_conf..."
         run_as_root mkdir -p "$conf_dir"
@@ -516,6 +517,7 @@ Session=plasmax11
 User=$REAL_USER
 EOF
         done
+        run_as_root chown -R sddm:sddm /var/lib/sddm
     fi
 
     log_ok "SDDM configured for Plasma X11"
