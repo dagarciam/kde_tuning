@@ -513,7 +513,7 @@ configure_x11_session() {
             run_as_root mkdir -p "$(dirname "$state_conf")"
             run_as_root tee "$state_conf" > /dev/null <<EOF
 [Last]
-Session=plasmax11
+Session=/usr/share/xsessions/plasmax11.desktop
 User=$REAL_USER
 EOF
         done
