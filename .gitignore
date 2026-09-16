@@ -6,3 +6,7 @@
 # Weather cache
 conky/Mimosa/scripts/weather.json
 .cache/
+
+# Local virtualenv and scripts
+.venv/
+scratch/

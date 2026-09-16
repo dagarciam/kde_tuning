@@ -1,11 +1,42 @@
 --[==[
-	Version		: 1.4
-	Author		: Closebox73
-	Description	: Draw multi bar for storage status with rounded option
+	Version		: 2.0
+	Author		: Closebox73 (Enhanced for 4 partitions 2x2 grid)
+	Description	: Draw multi bar for storage status (System, Personal, Documentos, Juegos)
 ]==]
 
 require 'cairo'
 require 'cairo_xlib'
+
+-- Helper function to check if a path exists
+local function path_exists(path)
+    if not path or path == "" then return false end
+    local ok, err, code = os.rename(path, path)
+    return ok or code == 13 or code == 16
+end
+
+-- Resolve mount path dynamically
+local function get_mount_path(preferred, label)
+    if path_exists(preferred) then
+        return preferred
+    end
+    local user = os.getenv("USER") or "dagarciam"
+    local media_path = "/run/media/" .. user .. "/" .. label
+    if path_exists(media_path) then
+        return media_path
+    end
+    return nil
+end
+
+-- Get filesystem usage and total size
+local function get_fs_info(preferred, label)
+    local p = get_mount_path(preferred, label)
+    if not p then
+        return 0, "N/A"
+    end
+    local perc = tonumber(conky_parse("${fs_used_perc " .. p .. "}")) or 0
+    local size = conky_parse("${fs_size " .. p .. "}") or "?"
+    return perc, size
+end
 
 -- Helper function to draw rounded rectangles
 function draw_rounded_rectangle(cr, x, y, w, h, r)
@@ -25,16 +56,20 @@ function draw_disk_bar(cr, label, value, total, x, y, w, h, r, bg_color, fg_colo
     cairo_fill(cr)
 
     -- Draw foreground fill based on usage
-    local fill_width = (value / 100) * w
-    cairo_set_source_rgba(cr, fg_color[1], fg_color[2], fg_color[3], fg_color[4])
-    draw_rounded_rectangle(cr, x, y, fill_width, h, r)
-    cairo_fill(cr)
+    if value > 0 then
+        local fill_w = (value / 100) * w
+        if fill_w < 2 * r then fill_w = 2 * r end
+        if fill_w > w then fill_w = w end
+        cairo_set_source_rgba(cr, fg_color[1], fg_color[2], fg_color[3], fg_color[4])
+        draw_rounded_rectangle(cr, x, y, fill_w, h, r)
+        cairo_fill(cr)
+    end
 
     -- Draw label text
     cairo_set_source_rgba(cr, 1, 1, 1, 1)
     cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL)
-    cairo_set_font_size(cr, 11)
-    cairo_move_to(cr, x, y - 8)
+    cairo_set_font_size(cr, 9.5)
+    cairo_move_to(cr, x, y - 5)
     cairo_show_text(cr, string.format("%s: %d%% (%s)", label, value, total))
 end
 
@@ -47,26 +82,35 @@ function conky_draw_disk_bars()
     local cr = cairo_create(cs)
 
     -- Get usage values and total sizes
-    local root = tonumber(conky_parse("${fs_used_perc /}")) or 0
-    local root_size = conky_parse("${fs_size /}") or "?"
+    local root, root_size = get_fs_info("/", "Root")
+    local personal, personal_size = get_fs_info("/personal", "Personal")
+    local doc, doc_size = get_fs_info("/documentos", "Documentos")
+    local juegos, juegos_size = get_fs_info("/juegos", "Juegos")
 
-    local home = tonumber(conky_parse("${fs_used_perc /home}")) or 0
-    local home_size = conky_parse("${fs_size /home}") or "?"
+    -- 2x2 Grid dimensions
+    local col1_x = 16
+    local col2_x = 158
+    local row1_y = 500
+    local row2_y = 546
 
-    -- Position and dimensions
-    local x, y = 18, 500
-    local width, height = 115, 16
-    local radius = 8
-    local spacing = 46
+    local width = 126
+    local height = 14
+    local radius = 7
 
     -- Colors
-    local bg = {1, 1, 1, 0.1}
-    local fg_root = {1.0, 0.2705, 0.2235, 1.0}
-    local fg_home = {0.1960, 0.8431, 0.2980, 1.0}
+    local bg = {1, 1, 1, 0.12}
+    local fg_root     = {1.0, 0.2705, 0.2235, 1.0} -- Coral red
+    local fg_personal = {0.1960, 0.8431, 0.2980, 1.0} -- Bright green
+    local fg_doc      = {0.0, 0.7843, 1.0, 1.0}    -- Cyan
+    local fg_juegos   = {1.0, 0.6235, 0.0392, 1.0} -- Amber orange
 
-    -- Draw bars
-    draw_disk_bar(cr, "System", root, root_size, x, y, width, height, radius, bg, fg_root)
-    draw_disk_bar(cr, "Home", home, home_size, x, y + spacing, width, height, radius, bg, fg_home)
+    -- Column 1: System and Personal
+    draw_disk_bar(cr, "System", root, root_size, col1_x, row1_y, width, height, radius, bg, fg_root)
+    draw_disk_bar(cr, "Personal", personal, personal_size, col1_x, row2_y, width, height, radius, bg, fg_personal)
+
+    -- Column 2: Documentos and Juegos
+    draw_disk_bar(cr, "Docs", doc, doc_size, col2_x, row1_y, width, height, radius, bg, fg_doc)
+    draw_disk_bar(cr, "Juegos", juegos, juegos_size, col2_x, row2_y, width, height, radius, bg, fg_juegos)
 
     cairo_destroy(cr)
     cairo_surface_destroy(cs)
