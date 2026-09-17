@@ -159,15 +159,15 @@ function draw_system_ring(cr, ring, value)
 
     -- Draw clean micro-label under ring (RAM, VRAM, GPU, TEMP)
     if ring.label then
-        cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
-        cairo_set_font_size(cr, 8.5)
-        cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 0.85)
+        cairo_select_font_face(cr, "Inter", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+        cairo_set_font_size(cr, 10.5)
+        cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 1.0)
         local ok, extents = pcall(function() return cairo_text_extents_t:create() end)
         if ok and extents then
             cairo_text_extents(cr, ring.label, extents)
             cairo_move_to(cr, ring.x - (extents.width / 2 + extents.x_bearing), ring.y + 36)
         else
-            cairo_move_to(cr, ring.x - 10, ring.y + 36)
+            cairo_move_to(cr, ring.x - 12, ring.y + 36)
         end
         cairo_show_text(cr, ring.label)
     end
