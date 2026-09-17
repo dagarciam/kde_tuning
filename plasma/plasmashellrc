@@ -2,6 +2,7 @@
 floating=1
 panelLengthMode=2
 panelVisibility=1
+shell=org.kde.plasma.desktop
 
 [PlasmaViews][Panel 328][Defaults]
 maxLength=1628
@@ -16,6 +17,7 @@ minLength=1450
 [PlasmaViews][Panel 352]
 floating=1
 panelLengthMode=2
+shell=org.kde.plasma.desktop
 
 [PlasmaViews][Panel 352][Defaults]
 maxLength=2927

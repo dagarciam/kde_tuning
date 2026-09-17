@@ -136,6 +136,9 @@ ForegroundVisited=0,188,212
 BrowserApplication=google-chrome.desktop
 ColorSchemeHash=2dafdb8db7e259fce6399dae70f9cd60076faef2
 
+[Icons]
+cursorTheme=Vimix-cursors
+
 [KDE]
 LookAndFeelPackage=com.github.vinceliuice.Orchis-dark
 contrast=4
