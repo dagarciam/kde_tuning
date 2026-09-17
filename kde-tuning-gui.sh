@@ -31,6 +31,7 @@ APP_TITLE="KDE Tuning Installer"
 declare -A STEP_LABELS=(
     [deps]="System Dependencies (pacman/yay)"
     [x11]="Plasma X11 SDDM Session"
+    [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
     [fonts]="Fonts (Abel, custom TTF)"
     [conky]="Conky Mimosa Widget"
@@ -39,7 +40,7 @@ declare -A STEP_LABELS=(
     [session]="Apply Session Changes (Plasma restart)"
 )
 
-ALL_STEPS=(deps x11 repos fonts conky zsh plasma session)
+ALL_STEPS=(deps x11 fstab repos fonts conky zsh plasma session)
 
 # --- Helper: show a checklist dialog and return selected items ---
 select_modules() {
@@ -287,7 +288,7 @@ main() {
     # --- Sudo handling ---
     local needs_root=false
     for step in "${selected_steps[@]}"; do
-        [[ "$step" == "deps" || "$step" == "x11" ]] && needs_root=true && break
+        [[ "$step" == "deps" || "$step" == "x11" || "$step" == "fstab" ]] && needs_root=true && break
     done
 
     if $needs_root && ! $dry_run; then

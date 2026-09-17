@@ -92,7 +92,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 ```
 ./setup.sh [OPCIONES]
 
-  --steps <list>     Pasos separados por coma: deps,x11,repos,fonts,conky,zsh,plasma,session
+  --steps <list>     Pasos separados por coma: deps,x11,fstab,repos,fonts,conky,zsh,plasma,session
   --dry-run          Simular sin cambios reales
   --no-restart       Omitir reinicio de Plasma Shell al final
   --gui-mode         Salida estructurada para consumo por GUI (prefijos [STEP/PROGRESS/FAIL])
@@ -110,6 +110,14 @@ El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; d
 - **Productividad:** `fzf`, `zoxide`, `fastfetch`, `lazygit`, `git-delta`.
 - **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6).
 - **Hardware:** `lm_sensors` (Temperaturas), `wireless_tools` (SSID WiFi).
+
+### 0.1 Automontaje de Volúmenes de Almacenamiento (/etc/fstab)
+El módulo `fstab` detecta automáticamente las particiones de almacenamiento secundarias (`Documentos`, `Juegos` y `Personal`), las registra en `/etc/fstab` y las monta de forma permanente:
+- **Puntos de montaje consistentes:** `/documentos` y `/juegos` (alineados con `/personal`).
+- **Arranque seguro con `nofail`:** Evita bloqueos en el arranque si un disco no responde (`defaults,nofail,x-systemd.device-timeout=10s`).
+- **Permisos de usuario completos:** Asigna `uid` y `gid` del usuario de escritorio para evitar solicitudes de contraseña de root en cada inicio de sesión y permitir acceso inmediato a Steam, juegos y documentos.
+- **Respaldo preventivo:** Genera una copia de respaldo fechada (`/etc/fstab.bak.<timestamp>`) antes de cualquier modificación.
+- **Sinergia con Conky:** Conecta directamente con las rutas preferidas del widget `Mimosa` (`disk_bar.lua`).
 
 ### 1. Conky (Tema Mimosa - Tuneado)
 - **Ubicación:** `conky/Mimosa`
