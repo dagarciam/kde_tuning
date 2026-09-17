@@ -24,7 +24,7 @@ system_rings = {
         fg_alpha = 1.0,
         rounded = true,
         dynamic_color = true,
-        icon = '', -- Hack Nerd Font: fa-microchip (\uf2db)
+        icon = '', -- Hack Nerd Font: fa-microchip (\uf2db)
         icon_size = 18,
     },
     {
@@ -42,8 +42,8 @@ system_rings = {
         fg_alpha = 1.0,
         rounded = true,
         dynamic_color = true,
-        icon = '', -- Hack Nerd Font: fa-database (\uf1c0)
-        icon_size = 16,
+        icon = '', -- Hack Nerd Font: fa-memory (\uefc5)
+        icon_size = 18,
     },
     {
         name = 'execi',

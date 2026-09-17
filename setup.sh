@@ -448,7 +448,7 @@ install_dependencies() {
     PKGS=(
         "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
-        "wireless_tools" "ttf-hack-nerd"
+        "wireless_tools" "ttf-hack-nerd" "imagemagick"
     )
 
     local x11_pkg
@@ -739,6 +739,11 @@ setup_conky() {
         chmod +x "$REAL_HOME/.config/conky/Mimosa/scripts"/*
         mkdir -p "$REAL_HOME/.config/autostart"
         cp "$REPO_DIR"/conky/conky-mimosa.desktop "$REAL_HOME/.config/autostart/"
+
+        # Initialize cover art cache if missing
+        if [[ ! -f /tmp/conky_cover.png && -f "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" ]]; then
+            cp "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png
+        fi
 
         if pgrep -x conky >/dev/null 2>&1; then
             log_info "Restarting Conky to apply new configuration..."

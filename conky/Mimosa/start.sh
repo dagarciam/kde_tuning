@@ -21,6 +21,11 @@ fi
 killall conky 2>/dev/null
 sleep 2s
 
+# Initialize cover art cache if missing
+if [ ! -f /tmp/conky_cover.png ] && [ -f "$HOME/.config/conky/Mimosa/assets/default_cover.png" ]; then
+    cp "$HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png 2>/dev/null || true
+fi
+
 # Launch specific Conky config
 conky -c "$HOME/.config/conky/Mimosa/Mimosa.conf" &> /dev/null &
 
