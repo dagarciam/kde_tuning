@@ -730,6 +730,7 @@ setup_conky() {
         log_dry "cp -r $REPO_DIR/conky/Mimosa $REAL_HOME/.config/conky/"
         log_dry "chmod +x .config/conky/Mimosa/start.sh + scripts/*"
         log_dry "cp conky-mimosa.desktop $REAL_HOME/.config/autostart/"
+        log_dry "Set Exec path in $REAL_HOME/.config/autostart/conky-mimosa.desktop"
         log_dry "Would restart Conky if currently running"
     else
         cp -r "$REPO_DIR"/conky/Mimosa "$REAL_HOME/.config/conky/"
@@ -737,6 +738,11 @@ setup_conky() {
         chmod +x "$REAL_HOME/.config/conky/Mimosa/scripts"/*
         mkdir -p "$REAL_HOME/.config/autostart"
         cp "$REPO_DIR"/conky/conky-mimosa.desktop "$REAL_HOME/.config/autostart/"
+        sed -i -E "s|^Exec=.*|Exec=${REAL_HOME}/.config/conky/Mimosa/start.sh|" "$REAL_HOME/.config/autostart/conky-mimosa.desktop"
+
+        if command -v systemctl &>/dev/null; then
+            systemctl --user daemon-reload 2>/dev/null || true
+        fi
 
         # Initialize cover art cache if missing
         if [[ ! -f /tmp/conky_cover.png && -f "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" ]]; then

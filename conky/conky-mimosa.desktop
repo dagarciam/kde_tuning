@@ -2,7 +2,7 @@
 Type=Application
 Name=Conky Mimosa
 Comment=Launch Mimosa Conky Theme
-Exec=sh -c "exec $HOME/.config/conky/Mimosa/start.sh"
+Exec=~/.config/conky/Mimosa/start.sh
 Icon=conky
 Terminal=false
 StartupNotify=false
