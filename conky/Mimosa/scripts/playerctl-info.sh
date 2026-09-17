@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Enhanced playerctl info script for Conky Mimosa media widget
-# Supports album art caching, multi-player priority, and clean title/artist parsing
+# Supports album art caching, multi-player priority, clean title/artist parsing,
+# and progress percentage for Android Auto style wavy seekbar
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSETS_DIR="$(cd "$SCRIPT_DIR/../assets" 2>/dev/null && pwd)"
@@ -74,12 +75,12 @@ update_cover() {
     fi
 
     if command -v magick >/dev/null 2>&1; then
-        magick "$raw_image" -resize 76x76^ -gravity center -extent 76x76 \
-            \( -size 76x76 xc:none -draw "roundrectangle 0,0,76,76,8,8" \) \
+        magick "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
+            \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
             -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
     elif command -v convert >/dev/null 2>&1; then
-        convert "$raw_image" -resize 76x76^ -gravity center -extent 76x76 \
-            \( -size 76x76 xc:none -draw "roundrectangle 0,0,76,76,8,8" \) \
+        convert "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
+            \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
             -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
     else
         cp "$raw_image" "$COVER_CACHE" 2>/dev/null
@@ -105,6 +106,7 @@ refresh_data() {
         PCTL_TIME="Idle"
         PCTL_ICON="$ICON_NONE"
         PCTL_ARTURL=""
+        PCTL_PERC="0"
     else
         case "$PCTL_STATUS" in
             "Playing") PCTL_ICON="$ICON_PLAYING" ;;
@@ -139,6 +141,10 @@ refresh_data() {
         PCTL_TITLE=$(truncate_text "${raw_title:-Unknown Title}")
         PCTL_ALBUM=$(truncate_text "${raw_album:-}")
 
+        local pos_raw len_raw
+        pos_raw=$(playerctl $PLAYER_ARG position 2>/dev/null)
+        len_raw=$(playerctl $PLAYER_ARG metadata mpris:length 2>/dev/null)
+
         local pos len
         pos=$(playerctl $PLAYER_ARG position --format "{{ duration(position) }}" 2>/dev/null)
         len=$(playerctl $PLAYER_ARG metadata --format "{{ duration(mpris:length) }}" 2>/dev/null)
@@ -148,6 +154,21 @@ refresh_data() {
             PCTL_TIME="$pos"
         else
             PCTL_TIME=""
+        fi
+
+        if [[ -n "$pos_raw" && -n "$len_raw" && "$len_raw" -gt 0 ]]; then
+            PCTL_PERC=$(awk -v p="$pos_raw" -v l="$len_raw" 'BEGIN {
+                if (l > 0) {
+                    val = (p * 1000000.0 / l) * 100.0;
+                    if (val > 100) val = 100;
+                    if (val < 0) val = 0;
+                    printf "%.1f", val;
+                } else {
+                    print 0;
+                }
+            }')
+        else
+            PCTL_PERC="0"
         fi
     fi
 
@@ -160,6 +181,7 @@ PCTL_ALBUM=$(printf '%q' "$PCTL_ALBUM")
 PCTL_TIME=$(printf '%q' "$PCTL_TIME")
 PCTL_ICON=$(printf '%q' "$PCTL_ICON")
 PCTL_ARTURL=$(printf '%q' "$PCTL_ARTURL")
+PCTL_PERC=$(printf '%q' "$PCTL_PERC")
 CACHE_EOF
 
     update_cover "$PCTL_ARTURL" "$PCTL_STATUS"
@@ -173,9 +195,11 @@ case "$1" in
     -l) echo "$PCTL_ALBUM" ;;
     -p) echo "$PCTL_TIME" ;;
     -i) echo "$PCTL_ICON" ;;
+    -s) echo "$PCTL_STATUS" ;;
+    -perc|--percent) echo "$PCTL_PERC" ;;
     -c|--cover) echo "$COVER_CACHE" ;;
     *)
-        echo "Usage: $0 -a (artist) | -t (title) | -l (album) | -p (position) | -i (icon) | -c (cover)"
+        echo "Usage: $0 -a (artist) | -t (title) | -l (album) | -p (position) | -i (icon) | -s (status) | -perc (percent) | -c (cover)"
         exit 1
         ;;
 esac
