@@ -448,7 +448,7 @@ install_dependencies() {
     PKGS=(
         "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
-        "wireless_tools"
+        "wireless_tools" "ttf-hack-nerd"
     )
 
     local x11_pkg
@@ -732,12 +732,22 @@ setup_conky() {
         log_dry "cp -r $REPO_DIR/conky/Mimosa $REAL_HOME/.config/conky/"
         log_dry "chmod +x .config/conky/Mimosa/start.sh + scripts/*"
         log_dry "cp conky-mimosa.desktop $REAL_HOME/.config/autostart/"
+        log_dry "Would restart Conky if currently running"
     else
         cp -r "$REPO_DIR"/conky/Mimosa "$REAL_HOME/.config/conky/"
         chmod +x "$REAL_HOME/.config/conky/Mimosa/start.sh"
         chmod +x "$REAL_HOME/.config/conky/Mimosa/scripts"/*
         mkdir -p "$REAL_HOME/.config/autostart"
         cp "$REPO_DIR"/conky/conky-mimosa.desktop "$REAL_HOME/.config/autostart/"
+
+        if pgrep -x conky >/dev/null 2>&1; then
+            log_info "Restarting Conky to apply new configuration..."
+            pkill -x conky 2>/dev/null || true
+            sleep 1
+            if [[ -x "$REAL_HOME/.config/conky/Mimosa/start.sh" ]]; then
+                "$REAL_HOME/.config/conky/Mimosa/start.sh" &
+            fi
+        fi
     fi
 
     log_ok "Conky setup complete"

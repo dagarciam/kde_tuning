@@ -22,7 +22,10 @@ system_rings = {
         bg_alpha = 0.1,
         fg_color = 0x32d74c,
         fg_alpha = 1.0,
-        rounded = true
+        rounded = true,
+        dynamic_color = true,
+        icon = '', -- Hack Nerd Font: fa-microchip (\uf2db)
+        icon_size = 18,
     },
     {
         name = 'memperc',
@@ -37,7 +40,10 @@ system_rings = {
         bg_alpha = 0.1,
         fg_color = 0x32d74c,
         fg_alpha = 1.0,
-        rounded = true
+        rounded = true,
+        dynamic_color = true,
+        icon = '', -- Hack Nerd Font: fa-database (\uf1c0)
+        icon_size = 16,
     },
     {
         name = 'execi',
@@ -53,7 +59,9 @@ system_rings = {
         fg_color = 0x32d74c,
         fg_alpha = 1.0,
         rounded = true,
-        icon = '' -- Feather: Chip
+        dynamic_color = true,
+        icon = '󰾲', -- Hack Nerd Font: md-expansion_card_variant (\U000f0fb2)
+        icon_size = 22,
     },
     {
         name = 'hwmon',
@@ -68,7 +76,10 @@ system_rings = {
         bg_alpha = 0.1,
         fg_color = 0x32d74c,
         fg_alpha = 1.0,
-        rounded = true
+        rounded = true,
+        dynamic_color = true,
+        icon = '', -- Hack Nerd Font: fa-thermometer_half (\uf2c9)
+        icon_size = 18,
     }
 }
 
@@ -86,6 +97,18 @@ function draw_system_ring(cr, ring, value)
     local angle_f = (ring.end_angle or 360) * math.pi/180 - math.pi/2
     local angle_v = angle_0 + (angle_f - angle_0) * (value / ring.max)
 
+    -- Dynamic thermal/load color calculation
+    local fg_col = ring.fg_color
+    if ring.dynamic_color then
+        if value >= 80 then
+            fg_col = 0xff453a -- High load / Temp warning: Coral Red
+        elseif value >= 60 then
+            fg_col = 0xff9f0a -- Medium load: Amber Orange
+        else
+            fg_col = ring.fg_color or 0x32d74c -- Normal: Bright Green
+        end
+    end
+
     cairo_set_line_width(cr, ring.thickness)
     cairo_set_line_cap(cr, ring.rounded and CAIRO_LINE_CAP_ROUND or CAIRO_LINE_CAP_BUTT)
 
@@ -95,25 +118,27 @@ function draw_system_ring(cr, ring, value)
     cairo_stroke(cr)
 
     -- Draw foreground arc representing the value
-    cairo_arc(cr, ring.x, ring.y, ring.radius, angle_0, angle_v)
-    cairo_set_source_rgba(cr, rgb_to_r_g_b(ring.fg_color, ring.fg_alpha))
-    cairo_stroke(cr)
+    if value > 0 then
+        cairo_arc(cr, ring.x, ring.y, ring.radius, angle_0, angle_v)
+        cairo_set_source_rgba(cr, rgb_to_r_g_b(fg_col, ring.fg_alpha))
+        cairo_stroke(cr)
+    end
 
-    -- If an icon is specified, draw it in the center
+    -- Draw unified icon cleanly in center
     if ring.icon then
-        -- Optional: Cover the background icon (battery) with a solid color
-        -- We'll use a slightly transparent black to blend better
-        cairo_set_source_rgba(cr, 0, 0, 0, 0.8)
-        cairo_arc(cr, ring.x, ring.y, 14, 0, 2*math.pi)
-        cairo_fill(cr)
-
-        cairo_select_font_face(cr, "Feather", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL)
-        cairo_set_font_size(cr, 18)
+        cairo_select_font_face(cr, "Hack Nerd Font", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL)
+        cairo_set_font_size(cr, ring.icon_size or 18)
         cairo_set_source_rgba(cr, 1, 1, 1, 1) -- White
-        
-        -- Simple centering without extents for compatibility, 
-        -- manual offset for Feather Icons at size 18
-        cairo_move_to(cr, ring.x - 9, ring.y + 7)
+
+        local ok, extents = pcall(function() return cairo_text_extents_t:create() end)
+        if ok and extents then
+            cairo_text_extents(cr, ring.icon, extents)
+            local move_x = ring.x - (extents.width / 2 + extents.x_bearing)
+            local move_y = ring.y - (extents.height / 2 + extents.y_bearing)
+            cairo_move_to(cr, move_x, move_y)
+        else
+            cairo_move_to(cr, ring.x - (ring.icon_size or 18) / 2, ring.y + (ring.icon_size or 18) / 3)
+        end
         cairo_show_text(cr, ring.icon)
     end
 end

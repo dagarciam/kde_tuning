@@ -5,9 +5,17 @@
 # Cheers!
 # Addy
 
-SSID_NAME=$(/sbin/iwgetid -r)
+SSID_NAME=$(iw dev 2>/dev/null | sed -n 's/^[[:space:]]*ssid[[:space:]]\+//p' | head -n 1)
 
-if [[ "${SSID_NAME}" != "" ]]; then
+if [[ -z "${SSID_NAME}" ]]; then
+    SSID_NAME=$(nmcli -t -f TYPE,NAME connection show --active 2>/dev/null | awk -F: '$1 == "802-11-wireless" { sub(/^[^:]*:/, ""); print; exit }')
+fi
+
+if [[ -z "${SSID_NAME}" ]] && command -v iwgetid >/dev/null 2>&1; then
+    SSID_NAME=$(iwgetid -r 2>/dev/null || /sbin/iwgetid -r 2>/dev/null)
+fi
+
+if [[ -n "${SSID_NAME}" ]]; then
 	if  [[ $1 = "-i" ]]; then
     echo "  ${SSID_NAME}"
 	else
@@ -17,4 +25,4 @@ else
 echo "Not Connected"
 fi
 
-exit
+exit 0
