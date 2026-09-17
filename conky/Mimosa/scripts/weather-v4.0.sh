@@ -17,12 +17,13 @@ unit=metric
 lang=en
 
 url="https://api.openweathermap.org/data/2.5/weather?id=${city_id}&appid=${api_key}&cnt=5&units=${unit}&lang=${lang}"
-weather_file=~/.cache/weather.json
+weather_file="$HOME/.cache/weather.json"
 
 # === FUNCTIONS ===
 
 # Download JSON from OpenWeatherMap
 get_data () {
+	mkdir -p "$HOME/.cache"
 	curl -s "${url}" -o "$weather_file"
 }
 

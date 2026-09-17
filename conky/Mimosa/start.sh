@@ -1,13 +1,8 @@
 #!/bin/bash
 
-# Check if we are in an X11 session
-# Mimosa Conky uses Xlib bindings which are not compatible with Wayland
-if [ "$XDG_SESSION_TYPE" != "x11" ]; then
-    echo "Mimosa Conky requires an X11 session. Current session: $XDG_SESSION_TYPE"
-    # Optional: notify the user via desktop notification
-    if command -v notify-send &> /dev/null; then
-        notify-send "Conky Error" "Mimosa theme requires an X11 session to display Lua rings correctly."
-    fi
+# Ensure graphical display is available
+if [ -z "$DISPLAY" ]; then
+    echo "Mimosa Conky requires an active display (DISPLAY is not set)."
     exit 1
 fi
 
@@ -18,15 +13,15 @@ if command -v udisksctl &> /dev/null; then
 fi
 
 # Close all active Conky instances
-killall conky 2>/dev/null
-sleep 2s
+pkill -9 -x conky 2>/dev/null || true
+sleep 1s
 
 # Initialize cover art cache if missing
 if [ ! -f /tmp/conky_cover.png ] && [ -f "$HOME/.config/conky/Mimosa/assets/default_cover.png" ]; then
     cp "$HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png 2>/dev/null || true
 fi
 
-# Launch specific Conky config
-conky -c "$HOME/.config/conky/Mimosa/Mimosa.conf" &> /dev/null &
+# Launch specific Conky config detached from terminal
+nohup conky -c "$HOME/.config/conky/Mimosa/Mimosa.conf" </dev/null &>/dev/null &
 
 exit 0

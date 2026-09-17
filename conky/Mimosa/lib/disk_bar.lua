@@ -10,8 +10,16 @@ require 'cairo_xlib'
 -- Helper function to check if a path exists
 local function path_exists(path)
     if not path or path == "" then return false end
-    local ok, err, code = os.rename(path, path)
-    return ok or code == 13 or code == 16
+    local ok, _, code = os.rename(path, path)
+    if ok or code == 13 or code == 16 then
+        return true
+    end
+    local f = io.open(path, "r")
+    if f then
+        f:close()
+        return true
+    end
+    return false
 end
 
 -- Resolve mount path dynamically
@@ -51,6 +59,7 @@ end
 -- Function to draw a disk usage bar with label
 function draw_disk_bar(cr, label, value, total, x, y, w, h, r, bg_color, fg_color)
     -- Draw background bar
+    cairo_new_path(cr)
     cairo_set_source_rgba(cr, bg_color[1], bg_color[2], bg_color[3], bg_color[4])
     draw_rounded_rectangle(cr, x, y, w, h, r)
     cairo_fill(cr)
@@ -60,26 +69,40 @@ function draw_disk_bar(cr, label, value, total, x, y, w, h, r, bg_color, fg_colo
         local fill_w = (value / 100) * w
         if fill_w < 2 * r then fill_w = 2 * r end
         if fill_w > w then fill_w = w end
+        cairo_new_path(cr)
         cairo_set_source_rgba(cr, fg_color[1], fg_color[2], fg_color[3], fg_color[4])
         draw_rounded_rectangle(cr, x, y, fill_w, h, r)
         cairo_fill(cr)
     end
 
     -- Draw label text
+    cairo_new_path(cr)
     cairo_set_source_rgba(cr, 1, 1, 1, 1)
     cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL)
     cairo_set_font_size(cr, 9.5)
     cairo_move_to(cr, x, y - 5)
     cairo_show_text(cr, string.format("%s: %d%% (%s)", label, value, total))
+    cairo_new_path(cr)
 end
 
--- Main function called by Conky
-function conky_draw_disk_bars()
+-- Main function called by Conky or reused by rings_rounded.lua
+function conky_draw_disk_bars(passed_cr)
     if conky_window == nil then return end
 
-    local cs = cairo_xlib_surface_create(conky_window.display, conky_window.drawable,
-                                         conky_window.visual, conky_window.width, conky_window.height)
-    local cr = cairo_create(cs)
+    local cr = passed_cr
+    local cs = nil
+    local need_destroy_cs = false
+
+    if cr == nil then
+        if conky_surface ~= nil then
+            cs = conky_surface()
+        else
+            cs = cairo_xlib_surface_create(conky_window.display, conky_window.drawable,
+                                           conky_window.visual, conky_window.width, conky_window.height)
+            need_destroy_cs = true
+        end
+        cr = cairo_create(cs)
+    end
 
     -- Get usage values and total sizes
     local root, root_size = get_fs_info("/", "Root")
@@ -112,6 +135,10 @@ function conky_draw_disk_bars()
     draw_disk_bar(cr, "Docs", doc, doc_size, col2_x, row1_y, width, height, radius, bg, fg_doc)
     draw_disk_bar(cr, "Juegos", juegos, juegos_size, col2_x, row2_y, width, height, radius, bg, fg_juegos)
 
-    cairo_destroy(cr)
-    cairo_surface_destroy(cs)
+    if passed_cr == nil then
+        cairo_destroy(cr)
+        if need_destroy_cs and cs ~= nil then
+            cairo_surface_destroy(cs)
+        end
+    end
 end

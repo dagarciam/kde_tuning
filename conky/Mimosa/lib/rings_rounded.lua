@@ -113,12 +113,14 @@ function draw_system_ring(cr, ring, value)
     cairo_set_line_cap(cr, ring.rounded and CAIRO_LINE_CAP_ROUND or CAIRO_LINE_CAP_BUTT)
 
     -- Draw background arc
+    cairo_new_sub_path(cr)
     cairo_arc(cr, ring.x, ring.y, ring.radius, angle_0, angle_f)
     cairo_set_source_rgba(cr, rgb_to_r_g_b(ring.bg_color, ring.bg_alpha))
     cairo_stroke(cr)
 
     -- Draw foreground arc representing the value
     if value > 0 then
+        cairo_new_sub_path(cr)
         cairo_arc(cr, ring.x, ring.y, ring.radius, angle_0, angle_v)
         cairo_set_source_rgba(cr, rgb_to_r_g_b(fg_col, ring.fg_alpha))
         cairo_stroke(cr)
@@ -141,6 +143,9 @@ function draw_system_ring(cr, ring, value)
         end
         cairo_show_text(cr, ring.icon)
     end
+
+    -- Reset path so current text point does not connect to subsequent arcs
+    cairo_new_path(cr)
 end
 
 -- Android Auto / Material You squiggly progress bar
@@ -162,6 +167,7 @@ function draw_media_wave_bar(cr)
     local curr_x = x1 + (perc / 100.0) * (x2 - x1)
 
     -- 1. Unplayed portion (straight subtle track)
+    cairo_new_path(cr)
     cairo_set_line_width(cr, 2.5)
     cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18)
@@ -179,6 +185,7 @@ function draw_media_wave_bar(cr)
     cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND)
 
     if curr_x > x1 then
+        cairo_new_path(cr)
         if status == "Playing" and (curr_x - x1) > 8 then
             -- Animate phase when playing
             wave_phase = (wave_phase + 0.4) % (2 * math.pi)
@@ -202,36 +209,49 @@ function draw_media_wave_bar(cr)
         end
 
         -- 3. Thumb indicator (Material You rounded pill/dot)
+        cairo_new_sub_path(cr)
         cairo_arc(cr, curr_x, base_y, 3.8, 0, 2 * math.pi)
         cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0)
         cairo_fill(cr)
     end
+    cairo_new_path(cr)
 end
 
 -- Main function called by Conky
 function conky_main_draw()
     if conky_window == nil then return end
 
-    -- Call disk bars from disk_bar.lua
-    if conky_draw_disk_bars then
-        conky_draw_disk_bars()
+    local cs = nil
+    local need_destroy_cs = false
+
+    if conky_surface ~= nil then
+        cs = conky_surface()
+    else
+        cs = cairo_xlib_surface_create(conky_window.display, conky_window.drawable,
+                                       conky_window.visual, conky_window.width, conky_window.height)
+        need_destroy_cs = true
     end
 
-    local cs = cairo_xlib_surface_create(conky_window.display, conky_window.drawable,
-                                         conky_window.visual, conky_window.width, conky_window.height)
     local cr = cairo_create(cs)
 
-    -- Loop through all rings and draw them
+    -- 1. Draw storage bars from disk_bar.lua reusing the same Cairo context
+    if conky_draw_disk_bars then
+        conky_draw_disk_bars(cr)
+    end
+
+    -- 2. Loop through all rings and draw them
     for i, ring in ipairs(system_rings) do
         local val = tonumber(conky_parse('${' .. ring.name .. ' ' .. ring.arg .. '}')) or 0
         draw_system_ring(cr, ring, val)
     end
 
-    -- Draw Android Auto style wavy media progress bar
+    -- 3. Draw Android Auto style wavy media progress bar
     draw_media_wave_bar(cr)
 
     cairo_destroy(cr)
-    cairo_surface_destroy(cs)
+    if need_destroy_cs and cs ~= nil then
+        cairo_surface_destroy(cs)
+    end
 end
 
 function conky_system_rings()

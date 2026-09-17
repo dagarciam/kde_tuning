@@ -322,7 +322,7 @@ preflight_checks() {
         ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
         ensure_file "$REPO_DIR/zsh/.zshrc"
         ensure_file "$REPO_DIR/zsh/.p10k.zsh"
-        ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel.zip"
+        ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel-Regular.ttf"
     fi
 }
 
@@ -703,11 +703,10 @@ install_external_repos() {
 install_fonts() {
     log_progress "$1" "$2" "Installing fonts"
     dry_mkdir "$REAL_HOME/.local/share/fonts"
-    ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel.zip"
+    ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel-Regular.ttf"
 
     if $DRY_RUN; then
         log_dry "cp *.ttf $REAL_HOME/.local/share/fonts/"
-        log_dry "python3 -m zipfile -e Abel.zip $REAL_HOME/.local/share/fonts/"
         log_dry "fc-cache -fv"
     else
         if ! compgen -G "$REPO_DIR/conky/Mimosa/fonts/*.ttf" > /dev/null; then
@@ -715,7 +714,6 @@ install_fonts() {
         fi
 
         cp "$REPO_DIR"/conky/Mimosa/fonts/*.ttf "$REAL_HOME/.local/share/fonts/"
-        python3 -m zipfile -e "$REPO_DIR"/conky/Mimosa/fonts/Abel.zip "$REAL_HOME/.local/share/fonts/"
         fc-cache -fv > /dev/null
     fi
 
@@ -745,13 +743,18 @@ setup_conky() {
             cp "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png
         fi
 
-        if pgrep -x conky >/dev/null 2>&1; then
-            log_info "Restarting Conky to apply new configuration..."
-            pkill -x conky 2>/dev/null || true
-            sleep 1
+        # Stop any stale instances
+        pkill -9 -x conky 2>/dev/null || true
+        sleep 1
+
+        # Launch Conky if an active display is present
+        if [[ -n "$DISPLAY" ]]; then
+            log_info "Starting Conky Mimosa..."
             if [[ -x "$REAL_HOME/.config/conky/Mimosa/start.sh" ]]; then
-                "$REAL_HOME/.config/conky/Mimosa/start.sh" &
+                "$REAL_HOME/.config/conky/Mimosa/start.sh"
             fi
+        else
+            log_info "No DISPLAY detected; Conky will autostart upon graphical login."
         fi
     fi
 
