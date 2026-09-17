@@ -10,3 +10,5 @@ conky/Mimosa/scripts/weather.json
 # Local virtualenv and scripts
 .venv/
 scratch/
+
+LSD_i7_ArchLinux/

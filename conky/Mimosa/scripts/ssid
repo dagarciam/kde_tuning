@@ -1,28 +1,72 @@
 #!/bin/bash
 
-# A simple script to display wifi name
-# 'ssid -i' = with icon, 'ssid' = text only
-# Cheers!
-# Addy
+# Dynamic WiFi signal script for Conky Mimosa
+# Outputs: <signal_icon>  <SSID>
+# Uses Hack Nerd Font icons (nf-md-wifi-strength-*)
+# Cheers! — Enhanced by Antigravity
 
-SSID_NAME=$(iw dev 2>/dev/null | sed -n 's/^[[:space:]]*ssid[[:space:]]\+//p' | head -n 1)
+# Detect active wireless interface automatically
+INTERFACE=$(iw dev 2>/dev/null | awk '/Interface/{print $2; exit}')
+[[ -z "$INTERFACE" ]] && INTERFACE="wlp17s0"
 
-if [[ -z "${SSID_NAME}" ]]; then
-    SSID_NAME=$(nmcli -t -f TYPE,NAME connection show --active 2>/dev/null | awk -F: '$1 == "802-11-wireless" { sub(/^[^:]*:/, ""); print; exit }')
+# --- Signal strength → Nerd Font icon ---
+get_signal_icon() {
+    local sig
+    sig=$(iw dev "$INTERFACE" link 2>/dev/null | awk '/signal:/{print $2}')
+
+    if [[ -z "$sig" ]]; then
+        echo "󰤭"   # No signal / disconnected
+        return
+    fi
+
+    if   (( sig >= -50 )); then echo "󰤨"   # Excellent
+    elif (( sig >= -60 )); then echo "󰤥"   # Good
+    elif (( sig >= -70 )); then echo "󰤢"   # Fair
+    elif (( sig >= -80 )); then echo "󰤟"   # Weak
+    else                        echo "󰤯"   # Very weak
+    fi
+}
+
+# --- SSID name (multiple fallbacks) ---
+get_ssid() {
+    local ssid
+
+    # Method 1: iw (most direct)
+    ssid=$(iw dev "$INTERFACE" link 2>/dev/null | sed -n 's/^[[:space:]]*SSID: //p')
+
+    # Method 2: iw dev scan (passive)
+    if [[ -z "$ssid" ]]; then
+        ssid=$(iw dev 2>/dev/null | sed -n 's/^[[:space:]]*ssid[[:space:]]\+//p' | head -n 1)
+    fi
+
+    # Method 3: nmcli active connection
+    if [[ -z "$ssid" ]]; then
+        ssid=$(nmcli -t -f TYPE,NAME connection show --active 2>/dev/null \
+               | awk -F: '$1 == "802-11-wireless" { sub(/^[^:]*:/, ""); print; exit }')
+    fi
+
+    # Method 4: iwgetid
+    if [[ -z "$ssid" ]] && command -v iwgetid &>/dev/null; then
+        ssid=$(iwgetid -r 2>/dev/null)
+    fi
+
+    # Truncate to 15 chars to fit the panel
+    if (( ${#ssid} > 15 )); then
+        ssid="${ssid:0:12}..."
+    fi
+
+    echo "$ssid"
+}
+
+# --- Main output ---
+SSID=$(get_ssid)
+
+if [[ -z "$SSID" ]]; then
+    echo "󰤭  Not Connected"
+    exit 0
 fi
 
-if [[ -z "${SSID_NAME}" ]] && command -v iwgetid >/dev/null 2>&1; then
-    SSID_NAME=$(iwgetid -r 2>/dev/null || /sbin/iwgetid -r 2>/dev/null)
-fi
-
-if [[ -n "${SSID_NAME}" ]]; then
-	if  [[ $1 = "-i" ]]; then
-    echo "  ${SSID_NAME}"
-	else
-    echo "${SSID_NAME}"
-	fi
-else
-echo "Not Connected"
-fi
+ICON=$(get_signal_icon)
+echo "$ICON  $SSID"
 
 exit 0

@@ -1,10 +1,7 @@
 #!/bin/bash
 
 # Ensure graphical display is available
-if [ -z "$DISPLAY" ]; then
-    echo "Mimosa Conky requires an active display (DISPLAY is not set)."
-    exit 1
-fi
+export DISPLAY="${DISPLAY:-:0}"
 
 # Ensure secondary partitions (Documentos, Juegos) are mounted
 if command -v udisksctl &> /dev/null; then
@@ -22,6 +19,6 @@ if [ ! -f /tmp/conky_cover.png ] && [ -f "$HOME/.config/conky/Mimosa/assets/defa
 fi
 
 # Launch specific Conky config detached from terminal
-nohup conky -c "$HOME/.config/conky/Mimosa/Mimosa.conf" </dev/null &>/dev/null &
+setsid nohup conky -c "$HOME/.config/conky/Mimosa/Mimosa.conf" </dev/null &>/dev/null &
 
 exit 0

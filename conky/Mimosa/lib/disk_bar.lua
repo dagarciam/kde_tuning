@@ -110,11 +110,11 @@ function conky_draw_disk_bars(passed_cr)
     local doc, doc_size = get_fs_info("/documentos", "Documentos")
     local juegos, juegos_size = get_fs_info("/juegos", "Juegos")
 
-    -- 2x2 Grid dimensions
+    -- 2x2 Grid dimensions inside Card 4
     local col1_x = 16
     local col2_x = 158
-    local row1_y = 500
-    local row2_y = 546
+    local row1_y = 716
+    local row2_y = 760
 
     local width = 126
     local height = 14
