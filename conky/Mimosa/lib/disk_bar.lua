@@ -35,14 +35,26 @@ local function get_mount_path(preferred, label)
     return nil
 end
 
--- Get filesystem usage and total size
+-- Cache for filesystem usage and total size to support sub-second update intervals smoothly
+local last_fs_check = 0
+local cached_fs_data = {}
+
 local function get_fs_info(preferred, label)
+    local now = os.time()
+    local key = preferred .. ":" .. label
+    if cached_fs_data[key] and (now - last_fs_check < 3) then
+        return cached_fs_data[key].perc, cached_fs_data[key].size
+    end
+
     local p = get_mount_path(preferred, label)
     if not p then
+        cached_fs_data[key] = { perc = 0, size = "N/A" }
         return 0, "N/A"
     end
     local perc = tonumber(conky_parse("${fs_used_perc " .. p .. "}")) or 0
     local size = conky_parse("${fs_size " .. p .. "}") or "?"
+    cached_fs_data[key] = { perc = perc, size = size }
+    last_fs_check = now
     return perc, size
 end
 

@@ -6,6 +6,7 @@
 
 require 'cairo'
 require 'cairo_xlib'
+require 'cairo_imlib2_helper'
 
 -- Ring configuration table
 system_rings = {
@@ -57,8 +58,8 @@ system_rings = {
         end,
     },
     {
-        name = 'execi',
-        arg = '2 cat /sys/class/drm/card1/device/gpu_busy_percent',
+        name = 'gpu',
+        arg = '',
         max = 100,
         x = 190.0, y = 340.0,
         radius = 25,
@@ -74,6 +75,15 @@ system_rings = {
         icon = '󰾲', -- Hack Nerd Font: md-expansion_card_variant (\U000f0fb2)
         icon_size = 21,
         label = 'GPU',
+        custom_val = function()
+            local f = io.open('/sys/class/drm/card1/device/gpu_busy_percent', 'r')
+            if f then
+                local val = tonumber(f:read('*all') or '0') or 0
+                f:close()
+                return val
+            end
+            return 0
+        end,
     },
     {
         name = 'hwmon',
@@ -176,74 +186,7 @@ function draw_system_ring(cr, ring, value)
     cairo_new_path(cr)
 end
 
--- Android Auto / Material You squiggly progress bar
-local wave_phase = 0
 
-function draw_media_wave_bar(cr)
-    local status = conky_parse("${execi 1 ~/.config/conky/Mimosa/scripts/playerctl-info.sh -s}") or ""
-    if status == "" or status == "Stopped" then
-        return
-    end
-
-    local perc = tonumber(conky_parse("${execi 1 ~/.config/conky/Mimosa/scripts/playerctl-info.sh -perc}")) or 0
-    if perc < 0 then perc = 0 end
-    if perc > 100 then perc = 100 end
-
-    local x1 = 18
-    local x2 = 282
-    local base_y = 909
-    local curr_x = x1 + (perc / 100.0) * (x2 - x1)
-
-    -- 1. Unplayed portion (straight subtle track)
-    cairo_new_path(cr)
-    cairo_set_line_width(cr, 2.5)
-    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
-    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18)
-    if curr_x < x2 then
-        cairo_move_to(cr, curr_x, base_y)
-        cairo_line_to(cr, x2, base_y)
-        cairo_stroke(cr)
-    end
-
-    -- 2. Played portion (Material You wavy line when playing, flat when paused)
-    local fg_color = {0.1960, 0.8431, 0.2980, 1.0} -- Material Accent Green (#32d74c)
-    cairo_set_source_rgba(cr, fg_color[1], fg_color[2], fg_color[3], fg_color[4])
-    cairo_set_line_width(cr, 2.8)
-    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
-    cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND)
-
-    if curr_x > x1 then
-        cairo_new_path(cr)
-        if status == "Playing" and (curr_x - x1) > 8 then
-            -- Animate phase when playing
-            wave_phase = (wave_phase + 0.4) % (2 * math.pi)
-            local wavelength = 16.0
-            local amplitude = 2.4
-
-            cairo_move_to(cr, x1, base_y)
-            for x = x1 + 1, curr_x do
-                local taper_start = math.min(1.0, (x - x1) / 8.0)
-                local taper_end = math.min(1.0, (curr_x - x) / 8.0)
-                local env = taper_start * taper_end
-                local wy = base_y + env * amplitude * math.sin((x - x1) * 2 * math.pi / wavelength + wave_phase)
-                cairo_line_to(cr, x, wy)
-            end
-            cairo_stroke(cr)
-        else
-            -- Flat line when paused or very short
-            cairo_move_to(cr, x1, base_y)
-            cairo_line_to(cr, curr_x, base_y)
-            cairo_stroke(cr)
-        end
-
-        -- 3. Thumb indicator (Material You rounded pill/dot)
-        cairo_new_sub_path(cr)
-        cairo_arc(cr, curr_x, base_y, 3.8, 0, 2 * math.pi)
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0)
-        cairo_fill(cr)
-    end
-    cairo_new_path(cr)
-end
 
 -- Helper to draw rounded rectangle
 local function draw_rounded_rect(cr, x, y, w, h, r)
@@ -316,7 +259,15 @@ local function get_physical_cores()
 end
 
 -- Calculates average load for a physical core across all its SMT sibling threads
+local last_core_check = 0
+local cached_loads = {}
+
 local function get_physical_core_load(core_info)
+    local now = os.time()
+    local cid = core_info.core_num
+    if cached_loads[cid] and (now - last_core_check < 1) then
+        return cached_loads[cid]
+    end
     local sum = 0
     for _, cpu_idx in ipairs(core_info.cpus) do
         local val = tonumber(conky_parse('${cpu cpu' .. (cpu_idx + 1) .. '}')) or 0
@@ -325,10 +276,15 @@ local function get_physical_core_load(core_info)
     local avg = math.floor(sum / #core_info.cpus + 0.5)
     if avg < 0 then avg = 0 end
     if avg > 100 then avg = 100 end
+    cached_loads[cid] = avg
+    if cid == 12 then last_core_check = now end
     return avg
 end
 
 -- Renders the 12 physical cores and total CPU load for Card 3 (AMD Ryzen 9 Dual-CCD architecture)
+local last_total_cpu_check = 0
+local cached_total_cpu = 0
+
 function draw_cpu_card(cr)
     -- 1. Left: Hero Ring for Total CPU Load
     local xc = 56.0
@@ -336,9 +292,14 @@ function draw_cpu_card(cr)
     local radius = 26.0
     local thickness = 5.5
 
-    local total_cpu = tonumber(conky_parse('${cpu cpu0}')) or 0
-    if total_cpu < 0 then total_cpu = 0 end
-    if total_cpu > 100 then total_cpu = 100 end
+    local now_cpu = os.time()
+    if now_cpu - last_total_cpu_check >= 1 or last_total_cpu_check == 0 then
+        cached_total_cpu = tonumber(conky_parse('${cpu}')) or 0
+        if cached_total_cpu < 0 then cached_total_cpu = 0 end
+        if cached_total_cpu > 100 then cached_total_cpu = 100 end
+        last_total_cpu_check = now_cpu
+    end
+    local total_cpu = cached_total_cpu
 
     local angle_0 = -math.pi / 2
     local angle_f = angle_0 + 2 * math.pi
@@ -510,6 +471,9 @@ function draw_cpu_card(cr)
 end
 
 -- Main function called by Conky
+local last_ring_check = 0
+local cached_ring_values = {}
+
 function conky_main_draw()
     if conky_window == nil then return end
 
@@ -531,21 +495,25 @@ function conky_main_draw()
         conky_draw_disk_bars(cr)
     end
 
-    -- 2. Loop through all rings and draw them
+    -- 2. Loop through all rings and draw them (cached to 1Hz)
+    local now_ring = os.time()
+    local sample_rings = (now_ring - last_ring_check >= 1) or (last_ring_check == 0)
+    if sample_rings then last_ring_check = now_ring end
+
     for i, ring in ipairs(system_rings) do
-        local val = 0
-        if ring.custom_val then
-            val = ring.custom_val()
-        else
-            val = tonumber(conky_parse('${' .. ring.name .. ' ' .. ring.arg .. '}')) or 0
+        if sample_rings or not cached_ring_values[i] then
+            local val = 0
+            if ring.custom_val then
+                val = ring.custom_val()
+            else
+                val = tonumber(conky_parse('${' .. ring.name .. ' ' .. ring.arg .. '}')) or 0
+            end
+            cached_ring_values[i] = val
         end
-        draw_system_ring(cr, ring, val)
+        draw_system_ring(cr, ring, cached_ring_values[i])
     end
 
-    -- 3. Draw Android Auto style wavy media progress bar
-    draw_media_wave_bar(cr)
-
-    -- 4. Draw 12 physical cores and CPU load card
+    -- 3. Draw 12 physical cores and CPU load card
     draw_cpu_card(cr)
 
     cairo_destroy(cr)
