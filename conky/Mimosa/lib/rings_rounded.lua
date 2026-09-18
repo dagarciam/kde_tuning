@@ -191,7 +191,7 @@ function draw_media_wave_bar(cr)
 
     local x1 = 18
     local x2 = 282
-    local base_y = 904
+    local base_y = 909
     local curr_x = x1 + (perc / 100.0) * (x2 - x1)
 
     -- 1. Unplayed portion (straight subtle track)
@@ -245,94 +245,266 @@ function draw_media_wave_bar(cr)
     cairo_new_path(cr)
 end
 
--- Concentric multi-core CPU dial for Card 3 (inspired by LSD conky)
-function draw_cpu_concentric_dial(cr)
-    local xc = 68.0
-    local yc = 535.0
+-- Helper to draw rounded rectangle
+local function draw_rounded_rect(cr, x, y, w, h, r)
+    cairo_new_sub_path(cr)
+    cairo_arc(cr, x + w - r, y + r,     r, -math.pi/2, 0)
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, math.pi/2)
+    cairo_arc(cr, x + r,     y + h - r, r, math.pi/2, math.pi)
+    cairo_arc(cr, x + r,     y + r,     r, math.pi, -math.pi/2)
+    cairo_close_path(cr)
+end
 
-    -- Detect active online CPUs (0 to count-1)
-    local count = 6
-    local f = io.open('/sys/devices/system/cpu/online', 'r')
-    if f then
-        local line = f:read('*all') or ''
+-- Dynamic load color helper
+local function get_load_color(val)
+    if val >= 80 then
+        return 0xff453a -- Coral Red
+    elseif val >= 60 then
+        return 0xff9f0a -- Amber Orange
+    else
+        return 0x32d74c -- Bright Green
+    end
+end
+
+-- Physical core detection table (cached)
+local physical_cores = nil
+
+local function get_physical_cores()
+    if physical_cores ~= nil then
+        return physical_cores
+    end
+
+    physical_cores = {}
+    local seen_cores = {}
+
+    for cpu_id = 0, 63 do
+        local path = string.format('/sys/devices/system/cpu/cpu%d/topology/thread_siblings_list', cpu_id)
+        local f = io.open(path, 'r')
+        if not f then break end
+        local content = (f:read('*all') or ''):gsub('%s+', '')
         f:close()
-        local last = line:match('%-(%d+)')
-        if last then
-            count = tonumber(last) + 1
-        end
-    end
 
-    local max_r = 38.0
-    local min_r = 18.0
-    local step = (max_r - min_r) / math.max(1, count - 1)
-    local thickness = math.max(1.8, math.min(3.0, step * 0.65))
-
-    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
-
-    for i = 1, count do
-        local r = max_r - (i - 1) * step
-        local val = tonumber(conky_parse('${cpu cpu' .. i .. '}')) or 0
-        if val < 0 then val = 0 end
-        if val > 100 then val = 100 end
-
-        local angle_0 = -math.pi / 2
-        local angle_f = angle_0 + 2 * math.pi
-        local angle_v = angle_0 + (val / 100.0) * (2 * math.pi)
-
-        -- Background track
-        cairo_set_line_width(cr, thickness)
-        cairo_new_sub_path(cr)
-        cairo_arc(cr, xc, yc, r, angle_0, angle_f)
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.12)
-        cairo_stroke(cr)
-
-        -- Foreground value arc
-        if val > 0 then
-            local fg_col = 0x32d74c
-            if val >= 80 then
-                fg_col = 0xff453a
-            elseif val >= 60 then
-                fg_col = 0xff9f0a
+        local key = content
+        if not seen_cores[key] then
+            seen_cores[key] = true
+            local cpus = {}
+            for part in string.gmatch(content, '([^,]+)') do
+                local s, e = part:match('^(%d+)%-(%d+)$')
+                if s and e then
+                    for c = tonumber(s), tonumber(e) do table.insert(cpus, c) end
+                else
+                    local c = tonumber(part)
+                    if c then table.insert(cpus, c) end
+                end
             end
-
-            cairo_new_sub_path(cr)
-            cairo_arc(cr, xc, yc, r, angle_0, angle_v)
-            cairo_set_source_rgba(cr, rgb_to_r_g_b(fg_col, 0.95))
-            cairo_stroke(cr)
+            if #cpus == 0 then table.insert(cpus, cpu_id) end
+            table.insert(physical_cores, {
+                core_num = #physical_cores + 1,
+                cpus = cpus
+            })
         end
     end
 
-    -- Center CPU total percentage
-    local total_cpu = tonumber(conky_parse('${cpu cpu0}')) or 0
-    local text = string.format("%d%%", total_cpu)
-    cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
-    cairo_set_font_size(cr, 12.0)
-    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.95)
+    -- Fallback if sysfs was unavailable
+    if #physical_cores == 0 then
+        for i = 1, 12 do
+            table.insert(physical_cores, { core_num = i, cpus = { i - 1, i - 1 + 12 } })
+        end
+    end
 
+    return physical_cores
+end
+
+-- Calculates average load for a physical core across all its SMT sibling threads
+local function get_physical_core_load(core_info)
+    local sum = 0
+    for _, cpu_idx in ipairs(core_info.cpus) do
+        local val = tonumber(conky_parse('${cpu cpu' .. (cpu_idx + 1) .. '}')) or 0
+        sum = sum + val
+    end
+    local avg = math.floor(sum / #core_info.cpus + 0.5)
+    if avg < 0 then avg = 0 end
+    if avg > 100 then avg = 100 end
+    return avg
+end
+
+-- Renders the 12 physical cores and total CPU load for Card 3 (AMD Ryzen 9 Dual-CCD architecture)
+function draw_cpu_card(cr)
+    -- 1. Left: Hero Ring for Total CPU Load
+    local xc = 56.0
+    local yc = 533.0
+    local radius = 26.0
+    local thickness = 5.5
+
+    local total_cpu = tonumber(conky_parse('${cpu cpu0}')) or 0
+    if total_cpu < 0 then total_cpu = 0 end
+    if total_cpu > 100 then total_cpu = 100 end
+
+    local angle_0 = -math.pi / 2
+    local angle_f = angle_0 + 2 * math.pi
+    local angle_v = angle_0 + (total_cpu / 100.0) * (2 * math.pi)
+
+    -- Background track
+    cairo_set_line_width(cr, thickness)
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
+    cairo_new_sub_path(cr)
+    cairo_arc(cr, xc, yc, radius, angle_0, angle_f)
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.12)
+    cairo_stroke(cr)
+
+    -- Foreground value arc
+    if total_cpu > 0 then
+        local fg_col = get_load_color(total_cpu)
+        cairo_new_sub_path(cr)
+        cairo_arc(cr, xc, yc, radius, angle_0, angle_v)
+        cairo_set_source_rgba(cr, rgb_to_r_g_b(fg_col, 0.95))
+        cairo_stroke(cr)
+    end
+
+    -- Center percentage text
+    local total_text = string.format("%d%%", total_cpu)
+    cairo_select_font_face(cr, "Bebas Neue", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+    cairo_set_font_size(cr, 16.5)
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.95)
     local ok, extents = pcall(function() return cairo_text_extents_t:create() end)
     if ok and extents then
-        cairo_text_extents(cr, text, extents)
-        local move_x = xc - (extents.width / 2 + extents.x_bearing)
-        local move_y = yc - (extents.height / 2 + extents.y_bearing)
-        cairo_move_to(cr, move_x, move_y)
+        cairo_text_extents(cr, total_text, extents)
+        cairo_move_to(cr, xc - (extents.width / 2 + extents.x_bearing), yc - (extents.height / 2 + extents.y_bearing))
     else
         cairo_move_to(cr, xc - 12, yc + 5)
     end
-    cairo_show_text(cr, text)
+    cairo_show_text(cr, total_text)
 
-    -- Sub-label under dial (e.g. "6 CORES")
-    local lbl = string.format("%d CORES", count)
-    cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+    -- Micro-label under ring: "CPU TOTAL"
+    cairo_select_font_face(cr, "Inter", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
     cairo_set_font_size(cr, 8.5)
-    cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 0.9)
-    local ok2, extents2 = pcall(function() return cairo_text_extents_t:create() end)
-    if ok2 and extents2 then
-        cairo_text_extents(cr, lbl, extents2)
-        cairo_move_to(cr, xc - (extents2.width / 2 + extents2.x_bearing), yc + 46)
+    cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 1.0)
+    local ok_lbl, ext_lbl = pcall(function() return cairo_text_extents_t:create() end)
+    if ok_lbl and ext_lbl then
+        cairo_text_extents(cr, "CPU TOTAL", ext_lbl)
+        cairo_move_to(cr, xc - (ext_lbl.width / 2 + ext_lbl.x_bearing), yc + 41)
     else
-        cairo_move_to(cr, xc - 16, yc + 46)
+        cairo_move_to(cr, xc - 22, yc + 41)
     end
-    cairo_show_text(cr, lbl)
+    cairo_show_text(cr, "CPU TOTAL")
+
+    -- Micro-label under ring: "12 CORES · 24 TH"
+    cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL)
+    cairo_set_font_size(cr, 7.5)
+    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.6)
+    local ok_sub, ext_sub = pcall(function() return cairo_text_extents_t:create() end)
+    local sub_txt = "12 CORES · 24 TH"
+    if ok_sub and ext_sub then
+        cairo_text_extents(cr, sub_txt, ext_sub)
+        cairo_move_to(cr, xc - (ext_sub.width / 2 + ext_sub.x_bearing), yc + 53)
+    else
+        cairo_move_to(cr, xc - 28, yc + 53)
+    end
+    cairo_show_text(cr, sub_txt)
+
+    -- 2. Right: Dual-CCD Matrix (12 Physical Cores: CCD0 [V-Cache] and CCD1 [Freq])
+    local cores = get_physical_cores()
+
+    local col1_x = 112
+    local col2_x = 202
+    local header_y = 480
+
+    -- Column 1 Header: CCD0 · V-CACHE
+    cairo_select_font_face(cr, "Inter", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+    cairo_set_font_size(cr, 8.5)
+    cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 0.95)
+    cairo_move_to(cr, col1_x, header_y)
+    cairo_show_text(cr, "CCD0 · V-CACHE")
+
+    -- Column 2 Header: CCD1 · FREQ
+    cairo_move_to(cr, col2_x, header_y)
+    cairo_show_text(cr, "CCD1 · FREQ")
+
+    local y_start = 495
+    local row_step = 22
+    local bar_w = 38
+    local bar_h = 5.5
+    local bar_r = 2.75
+
+    for k = 1, 6 do
+        local row_y = y_start + (k - 1) * row_step
+
+        -- --- Column 1: Core k (CCD 0) ---
+        local c1_idx = k
+        if cores[c1_idx] then
+            local load1 = get_physical_core_load(cores[c1_idx])
+            local lbl1 = string.format("C%02d", c1_idx)
+
+            -- Label
+            cairo_select_font_face(cr, "Inter", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+            cairo_set_font_size(cr, 8.0)
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.75)
+            cairo_move_to(cr, col1_x, row_y + 6)
+            cairo_show_text(cr, lbl1)
+
+            -- Bar track
+            local bar1_x = col1_x + 22
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.12)
+            draw_rounded_rect(cr, bar1_x, row_y, bar_w, bar_h, bar_r)
+            cairo_fill(cr)
+
+            -- Bar fill
+            if load1 > 0 then
+                local fill1_w = math.max(2 * bar_r, (load1 / 100.0) * bar_w)
+                if fill1_w > bar_w then fill1_w = bar_w end
+                local col1_fg = get_load_color(load1)
+                cairo_set_source_rgba(cr, rgb_to_r_g_b(col1_fg, 0.95))
+                draw_rounded_rect(cr, bar1_x, row_y, fill1_w, bar_h, bar_r)
+                cairo_fill(cr)
+            end
+
+            -- Value text
+            local val1_txt = string.format("%d%%", load1)
+            cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+            cairo_set_font_size(cr, 8.0)
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.85)
+            cairo_move_to(cr, bar1_x + bar_w + 5, row_y + 6)
+            cairo_show_text(cr, val1_txt)
+        end
+
+        -- --- Column 2: Core k+6 (CCD 1) ---
+        local c2_idx = k + 6
+        if cores[c2_idx] then
+            local load2 = get_physical_core_load(cores[c2_idx])
+            local lbl2 = string.format("C%02d", c2_idx)
+
+            -- Label
+            cairo_select_font_face(cr, "Inter", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+            cairo_set_font_size(cr, 8.0)
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.75)
+            cairo_move_to(cr, col2_x, row_y + 6)
+            cairo_show_text(cr, lbl2)
+
+            -- Bar track
+            local bar2_x = col2_x + 22
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.12)
+            draw_rounded_rect(cr, bar2_x, row_y, bar_w, bar_h, bar_r)
+            cairo_fill(cr)
+
+            -- Bar fill
+            if load2 > 0 then
+                local fill2_w = math.max(2 * bar_r, (load2 / 100.0) * bar_w)
+                if fill2_w > bar_w then fill2_w = bar_w end
+                local col2_fg = get_load_color(load2)
+                cairo_set_source_rgba(cr, rgb_to_r_g_b(col2_fg, 0.95))
+                draw_rounded_rect(cr, bar2_x, row_y, fill2_w, bar_h, bar_r)
+                cairo_fill(cr)
+            end
+
+            -- Value text
+            local val2_txt = string.format("%d%%", load2)
+            cairo_select_font_face(cr, "Abel", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD)
+            cairo_set_font_size(cr, 8.0)
+            cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.85)
+            cairo_move_to(cr, bar2_x + bar_w + 5, row_y + 6)
+            cairo_show_text(cr, val2_txt)
+        end
+    end
 
     cairo_new_path(cr)
 end
@@ -373,8 +545,8 @@ function conky_main_draw()
     -- 3. Draw Android Auto style wavy media progress bar
     draw_media_wave_bar(cr)
 
-    -- 4. Draw multi-core concentric CPU dial (Card 2)
-    draw_cpu_concentric_dial(cr)
+    -- 4. Draw 12 physical cores and CPU load card
+    draw_cpu_card(cr)
 
     cairo_destroy(cr)
     if need_destroy_cs and cs ~= nil then
