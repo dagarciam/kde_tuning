@@ -2,7 +2,7 @@
 
 # Enhanced playerctl info script for Conky Mimosa media widget
 # Supports album art caching, multi-player priority, clean title/artist parsing,
-# and progress percentage for Android Auto style wavy seekbar
+# Spotify Canvas loop filtering, and progress percentage for Android Auto style wavy seekbar
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSETS_DIR="$(cd "$SCRIPT_DIR/../assets" 2>/dev/null && pwd)"
@@ -13,7 +13,18 @@ URL_CACHE="/tmp/conky_current_arturl"
 STATE_CACHE="/tmp/conky_media_state"
 DEFAULT_COVER="$ASSETS_DIR/default_cover.png"
 
-PLAYER_ARG="--player=spotify,plasma-browser-integration,elisa,strawberry,vlc,mpd,audacious,cider,%any"
+# Python interpreter selection (prefer project virtual environment)
+PY_BIN=""
+if [[ -x "$SCRIPT_DIR/../../../.venv/bin/python" ]]; then
+    PY_BIN="$SCRIPT_DIR/../../../.venv/bin/python"
+elif [[ -x "$HOME/vscode/kde_tuning/.venv/bin/python" ]]; then
+    PY_BIN="$HOME/vscode/kde_tuning/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PY_BIN="python3"
+fi
+
+# Player priority: standalone music apps first, then native browser MPRIS, then plasma-browser-integration
+PLAYER_ARG="--player=spotify,cider,elisa,strawberry,vlc,mpd,audacious,deadbeef,rhythmbox,chromium,google-chrome,chrome,brave,firefox,microsoft-edge,opera,vivaldi,plasma-browser-integration,%any"
 
 # Feather Font icons
 ICON_NONE=""
@@ -38,52 +49,81 @@ update_cover() {
     local last_url=""
     [[ -f "$URL_CACHE" ]] && last_url=$(cat "$URL_CACHE" 2>/dev/null)
 
-    if [[ -z "$status" || -z "$art_url" ]]; then
-        if [[ "$last_url" != "default" || ! -f "$COVER_CACHE" ]]; then
-            echo "default" > "$URL_CACHE"
-            if [[ -f "$DEFAULT_COVER" ]]; then
-                cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
+    # When status is empty or stopped
+    if [[ -z "$status" || "$status" == "Stopped" ]]; then
+        local empty_count=0
+        local count_file="/tmp/conky_empty_status_count"
+        [[ -f "$count_file" ]] && empty_count=$(cat "$count_file" 2>/dev/null || echo 0)
+        empty_count=$((empty_count + 1))
+        echo "$empty_count" > "$count_file"
+
+        # Only reset to default cover if stopped/empty for at least 2 consecutive seconds
+        # This prevents brief track-change transitions from flashing the default cover
+        if (( empty_count >= 2 )); then
+            if [[ "$last_url" != "default" || ! -f "$COVER_CACHE" ]]; then
+                echo "default" > "$URL_CACHE"
+                [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
             fi
         fi
         return 0
     fi
+    rm -f /tmp/conky_empty_status_count 2>/dev/null
 
+    # If art_url is missing during playback, keep the existing cover rather than wiping it
+    if [[ -z "$art_url" ]]; then
+        if [[ ! -f "$COVER_CACHE" ]]; then
+            echo "default" > "$URL_CACHE"
+            [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
+        fi
+        return 0
+    fi
+
+    # If already cached successfully, avoid redundant disk writes
     if [[ "$art_url" == "$last_url" && -f "$COVER_CACHE" ]]; then
         return 0
     fi
 
-    echo "$art_url" > "$URL_CACHE"
-
     local raw_image="/tmp/conky_raw_art"
+    local download_ok=0
+
     if [[ "$art_url" =~ ^file:// ]]; then
         local file_path="${art_url#file://}"
-        file_path=$(python3 -c "import urllib.parse, sys; print(urllib.parse.unquote(sys.argv[1]))" "$file_path" 2>/dev/null || echo "$file_path")
-        if [[ -f "$file_path" ]]; then
-            raw_image="$file_path"
+        if [[ -n "$PY_BIN" ]]; then
+            file_path=$($PY_BIN -c "import urllib.parse, sys; print(urllib.parse.unquote(sys.argv[1]))" "$file_path" 2>/dev/null || printf '%b' "${file_path//%/\\x}")
         else
-            [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
-            return 0
+            file_path=$(printf '%b' "${file_path//%/\\x}")
+        fi
+        if [[ -f "$file_path" ]]; then
+            cp "$file_path" "$raw_image" 2>/dev/null && download_ok=1
         fi
     elif [[ "$art_url" =~ ^https?:// ]]; then
-        if ! curl -s -m 2 -o "$raw_image" "$art_url"; then
-            [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
-            return 0
+        if curl -s -m 3 -o "$raw_image" "$art_url" 2>/dev/null; then
+            [[ -s "$raw_image" ]] && download_ok=1
         fi
-    else
-        [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
-        return 0
     fi
 
-    if command -v magick >/dev/null 2>&1; then
-        magick "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
-            \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
-            -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
-    elif command -v convert >/dev/null 2>&1; then
-        convert "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
-            \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
-            -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
+    if (( download_ok == 1 )); then
+        # Successfully retrieved art: process rounded rectangle and save to COVER_CACHE
+        if command -v magick >/dev/null 2>&1; then
+            magick "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
+                \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
+                -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
+        elif command -v convert >/dev/null 2>&1; then
+            convert "$raw_image" -resize 72x72^ -gravity center -extent 72x72 \
+                \( -size 72x72 xc:none -draw "roundrectangle 0,0,72,72,8,8" \) \
+                -compose DstIn -composite "$COVER_CACHE" 2>/dev/null
+        else
+            cp "$raw_image" "$COVER_CACHE" 2>/dev/null
+        fi
+        # Only record art_url in URL_CACHE after successful generation
+        echo "$art_url" > "$URL_CACHE"
     else
-        cp "$raw_image" "$COVER_CACHE" 2>/dev/null
+        # If retrieval failed (e.g. file still being written or slow download during track skip),
+        # DO NOT record art_url in URL_CACHE so next tick retries immediately.
+        if [[ ! -f "$COVER_CACHE" ]]; then
+            echo "default" > "$URL_CACHE"
+            [[ -f "$DEFAULT_COVER" ]] && cp "$DEFAULT_COVER" "$COVER_CACHE" 2>/dev/null
+        fi
     fi
 }
 
@@ -134,12 +174,54 @@ refresh_data() {
             fi
         fi
 
+        # If artist is still unknown/empty, check if plasma-browser-integration has it
+        if [[ -z "$raw_artist" || "$raw_artist" == "Unknown Artist" ]]; then
+            local alt_artist
+            alt_artist=$(playerctl -p plasma-browser-integration metadata xesam:artist 2>/dev/null)
+            [[ -n "$alt_artist" ]] && raw_artist="$alt_artist"
+        fi
+
         # Clean up common YouTube video title suffixes
         raw_title=$(echo "$raw_title" | sed -E 's/ *\([Oo]fficial[^\)]*\)//g; s/ *\[[Oo]fficial[^\]]*\]//g')
+
+        # If album is empty or a URL, check if plasma-browser-integration has a clean album name
+        if [[ -z "$raw_album" || "$raw_album" =~ ^https?:// ]]; then
+            local alt_album
+            alt_album=$(playerctl -p plasma-browser-integration metadata xesam:album 2>/dev/null)
+            [[ -n "$alt_album" && ! "$alt_album" =~ ^https?:// ]] && raw_album="$alt_album"
+        fi
 
         PCTL_ARTIST=$(truncate_text "${raw_artist:-Unknown Artist}")
         PCTL_TITLE=$(truncate_text "${raw_title:-Unknown Title}")
         PCTL_ALBUM=$(truncate_text "${raw_album:-}")
+
+        # Fallback for art URL if primary player (e.g. Chromium native MPRIS) omits it
+        if [[ -z "$PCTL_ARTURL" ]]; then
+            PCTL_ARTURL=$(playerctl -p plasma-browser-integration metadata mpris:artUrl 2>/dev/null)
+        fi
+
+        # Spotify Web High-Res Album Art Detection:
+        # If playing on Spotify Web, extract real album art from Open Graph tags instead of 32x32 favicon
+        local spotify_url
+        spotify_url=$(playerctl -p plasma-browser-integration metadata xesam:url 2>/dev/null)
+        if [[ "$spotify_url" =~ ^https://open\.spotify\.com/ ]]; then
+            local spotify_cache_url="/tmp/conky_spotify_url"
+            local spotify_cache_art="/tmp/conky_spotify_art"
+            local last_sp_url=""
+            [[ -f "$spotify_cache_url" ]] && last_sp_url=$(cat "$spotify_cache_url" 2>/dev/null)
+
+            if [[ "$spotify_url" == "$last_sp_url" && -s "$spotify_cache_art" ]]; then
+                PCTL_ARTURL=$(cat "$spotify_cache_art" 2>/dev/null)
+            else
+                local fetched_art
+                fetched_art=$(curl -s -m 1.5 -L "$spotify_url" 2>/dev/null | grep -o 'https://i\.scdn\.co/image/[a-zA-Z0-9]*' | head -n 1)
+                if [[ -n "$fetched_art" ]]; then
+                    echo "$spotify_url" > "$spotify_cache_url"
+                    echo "$fetched_art" > "$spotify_cache_art"
+                    PCTL_ARTURL="$fetched_art"
+                fi
+            fi
+        fi
 
         local pos_raw len_raw
         pos_raw=$(playerctl $PLAYER_ARG position 2>/dev/null)
@@ -148,6 +230,24 @@ refresh_data() {
         local pos len
         pos=$(playerctl $PLAYER_ARG position --format "{{ duration(position) }}" 2>/dev/null)
         len=$(playerctl $PLAYER_ARG metadata --format "{{ duration(mpris:length) }}" 2>/dev/null)
+
+        # Anti-Canvas Loop / Short Video Filter:
+        # If length is <= 12 seconds (typical of Spotify Canvas video loop or short preview),
+        # inspect other running players for the real audio track length.
+        if [[ -n "$len_raw" && "$len_raw" -gt 0 && "$len_raw" -le 12000000 ]]; then
+            for alt_p in $(playerctl --list-all 2>/dev/null); do
+                local alt_len
+                alt_len=$(playerctl -p "$alt_p" metadata mpris:length 2>/dev/null)
+                if [[ -n "$alt_len" && "$alt_len" -gt 12000000 ]]; then
+                    len_raw="$alt_len"
+                    pos_raw=$(playerctl -p "$alt_p" position 2>/dev/null)
+                    pos=$(playerctl -p "$alt_p" position --format "{{ duration(position) }}" 2>/dev/null)
+                    len=$(playerctl -p "$alt_p" metadata --format "{{ duration(mpris:length) }}" 2>/dev/null)
+                    break
+                fi
+            done
+        fi
+
         if [[ -n "$len" && "$len" != "0:00" ]]; then
             PCTL_TIME="$pos / $len"
         elif [[ -n "$pos" ]]; then
