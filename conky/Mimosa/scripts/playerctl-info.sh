@@ -171,12 +171,13 @@ update_cover() {
 
 refresh_data_atomic() {
     # 1. Single atomic query via MPRIS format string (~3ms latency)
+    local sep=$'\x1f'
     local meta_raw
-    meta_raw=$(playerctl $PLAYER_ARG metadata --format '{{status}}||{{xesam:artist}}||{{xesam:title}}||{{xesam:album}}||{{mpris:artUrl}}||{{mpris:length}}||{{position}}' 2>/dev/null || echo "")
+    meta_raw=$(playerctl $PLAYER_ARG metadata --format "{{status}}${sep}{{xesam:artist}}${sep}{{xesam:title}}${sep}{{xesam:album}}${sep}{{mpris:artUrl}}${sep}{{mpris:length}}${sep}{{position}}" 2>/dev/null || echo "")
 
     local p_status="" p_artist="" p_title="" p_album="" p_arturl="" p_length="" p_pos=""
     if [[ -n "$meta_raw" ]]; then
-        IFS='||' read -r p_status p_artist p_title p_album p_arturl p_length p_pos <<< "$meta_raw"
+        IFS="$sep" read -r p_status p_artist p_title p_album p_arturl p_length p_pos <<< "$meta_raw"
     fi
 
     # Check fallback status if format returned empty
@@ -270,9 +271,10 @@ refresh_data_atomic() {
             local len_rem=$(( len_sec % 60 ))
 
             printf -v p_time "%d:%02d / %d:%02d" "$pos_min" "$pos_rem" "$len_min" "$len_rem"
-            p_perc=$(( (pos_raw * 100) / len_raw ))
-            (( p_perc > 100 )) && p_perc=100
-            (( p_perc < 0 )) && p_perc=0
+            local permil=$(( (pos_raw * 1000) / len_raw ))
+            (( permil > 1000 )) && permil=1000
+            (( permil < 0 )) && permil=0
+            p_perc="$(( permil / 10 )).$(( permil % 10 ))"
         elif (( pos_raw > 0 )); then
             local pos_sec=$(( pos_raw / 1000000 ))
             local pos_min=$(( pos_sec / 60 ))
@@ -354,7 +356,6 @@ refresh_data() {
 if [[ "${1:-}" == "--daemon" ]]; then
     # Kill any existing daemon before starting
     if [[ -f "$DAEMON_PID_FILE" ]]; then
-        local old_pid
         old_pid=$(cat "$DAEMON_PID_FILE" 2>/dev/null)
         if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
             kill "$old_pid" 2>/dev/null || true

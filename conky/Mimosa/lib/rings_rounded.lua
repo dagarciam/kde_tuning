@@ -477,6 +477,12 @@ local cached_ring_values = {}
 function conky_main_draw()
     if conky_window == nil then return end
 
+    local f_chk = io.open('/tmp/rings_check.log', 'w')
+    if f_chk then
+        f_chk:write(string.format("rings: conky_surface=%s\n", tostring(conky_surface)))
+        f_chk:close()
+    end
+
     local cs = nil
     local need_destroy_cs = false
 
