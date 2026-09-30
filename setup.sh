@@ -449,6 +449,7 @@ install_dependencies() {
         "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools" "ttf-hack-nerd" "imagemagick"
+        "appmenu-gtk-module"
     )
 
     local x11_pkg

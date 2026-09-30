@@ -108,7 +108,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; de lo contrario, utiliza **pacman**. Instala automáticamente:
 - **Core:** `conky`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
 - **Productividad:** `fzf`, `zoxide`, `fastfetch`, `lazygit`, `git-delta`.
-- **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6).
+- **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6), `appmenu-gtk-module` (Soporte de Menú Global para apps GTK/Electron).
 - **Hardware:** `lm_sensors` (Temperaturas), `wireless_tools` (SSID WiFi).
 
 ### 0.1 Automontaje de Volúmenes de Almacenamiento (/etc/fstab)
