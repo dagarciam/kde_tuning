@@ -462,8 +462,8 @@ install_dependencies() {
         log_warn "No known Plasma X11 package found in repos (checked: plasma-x11-session, plasma-workspace-x11)."
     fi
 
-    # AGS v3 + Astal libraries are only available from the AUR (needs an AUR helper).
-    local AUR_PKGS=("libastal-meta" "aylurs-gtk-shell")
+    # AGS v3 is available from the AUR (needs an AUR helper).
+    local AUR_PKGS=("aylurs-gtk-shell")
 
     if command -v yay &> /dev/null; then
         INSTALL_CMD=(yay -S --needed --noconfirm)
