@@ -30,24 +30,26 @@ APP_TITLE="KDE Tuning Installer"
 
 declare -A STEP_LABELS=(
     [deps]="System Dependencies (pacman/yay)"
-    [x11]="Plasma SDDM Session (Wayland) & Touchpad"
+    [wayland]="Plasma SDDM Session (Wayland)"
     [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
     [fonts]="Fonts (Abel, custom TTF)"
-    [conky]="Conky Mimosa Widget (Right Side)"
-    [ags]="Mimosa AGS Widget (Left Side - Wayland)"
+    [ags]="Mimosa AGS Widget (Wayland - Default)"
+    [conky]="Conky Mimosa Widget (Optional)"
     [zsh]="Zsh & Powerlevel10k Config"
     [plasma]="KDE Plasma Settings & Cursor Theme"
-    [session]="Apply Session Changes (Plasma restart)"
+    [session]="Apply Session Changes"
 )
 
-ALL_STEPS=(deps x11 fstab repos fonts conky ags zsh plasma session)
+ALL_STEPS=(deps wayland fstab repos fonts ags conky zsh plasma session)
 
 # --- Helper: show a checklist dialog and return selected items ---
 select_modules() {
     local args=()
     for step in "${ALL_STEPS[@]}"; do
-        args+=("$step" "${STEP_LABELS[$step]}" "on")
+        local state="on"
+        [[ "$step" == "conky" ]] && state="off"
+        args+=("$step" "${STEP_LABELS[$step]}" "$state")
     done
 
     kdialog \
@@ -289,7 +291,7 @@ main() {
     # --- Sudo handling ---
     local needs_root=false
     for step in "${selected_steps[@]}"; do
-        [[ "$step" == "deps" || "$step" == "x11" || "$step" == "fstab" ]] && needs_root=true && break
+        [[ "$step" == "deps" || "$step" == "wayland" || "$step" == "fstab" ]] && needs_root=true && break
     done
 
     if $needs_root && ! $dry_run; then
