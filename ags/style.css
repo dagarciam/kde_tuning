@@ -35,6 +35,7 @@ label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
 
 /* ---- rings ---- */
 .ring-icon { font-family: "Hack Nerd Font"; font-size: 16px; color: #d0d0d0; }
+.ring-pct { font-family: "Bebas Neue"; font-size: 18px; color: #ffffff; font-feature-settings: "tnum"; }
 .ring-title { font-family: "Bebas Neue"; font-size: 15px; color: @green; margin-top: 2px; }
 .ring-value { font-family: "Bebas Neue"; font-size: 22px; }
 
@@ -50,12 +51,24 @@ label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
 
 /* ---- bars ---- */
 levelbar trough { min-height: 6px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.12); border: none; padding: 0; }
-levelbar block.filled { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
+levelbar block.filled,
+levelbar block.filled.low,
+levelbar block.filled.high,
+levelbar block.filled.full { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
 levelbar block.empty { background-color: transparent; border: none; }
-.core-bar.warn block.filled { background-color: #ff9f0a; }
-.core-bar.crit block.filled { background-color: #ff453a; }
+.core-bar.warn block.filled,
+.core-bar.warn block.filled.low,
+.core-bar.warn block.filled.high,
+.core-bar.warn block.filled.full { background-color: #ff9f0a; }
+.core-bar.crit block.filled,
+.core-bar.crit block.filled.low,
+.core-bar.crit block.filled.high,
+.core-bar.crit block.filled.full { background-color: #ff453a; }
 .disk-bar trough { min-height: 12px; border-radius: 6px; }
-.disk-bar block.filled { min-height: 12px; border-radius: 6px; background-color: @red; }
+.disk-bar block.filled,
+.disk-bar block.filled.low,
+.disk-bar block.filled.high,
+.disk-bar block.filled.full { min-height: 12px; border-radius: 6px; background-color: @red; }
 .free { color: @green; }
 
 /* ---- media ---- */

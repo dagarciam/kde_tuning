@@ -126,7 +126,13 @@ export function CpuCard() {
             </box>
             <box spacing={14}>
                 <box orientation={V} valign={Gtk.Align.CENTER}>
-                    <Ring icon="" title="CPU TOTAL" value={stats.as((s) => s.cpuTotal)} text={stats.as((s) => pct(s.cpuTotal))} size={52} />
+                    <Ring
+                        icon={stats.as((s) => pct(s.cpuTotal))}
+                        centerClass="ring-pct"
+                        title="CPU TOTAL"
+                        value={stats.as((s) => s.cpuTotal)}
+                        size={52}
+                    />
                     <label class="small dim" label={`${n} CORES · ${hw.logical_threads} TH`} />
                 </box>
                 {cols.map((c, i) => (

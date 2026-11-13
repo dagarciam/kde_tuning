@@ -21,11 +21,12 @@ function getRingColor(pctVal: number, invert?: boolean): RGBA {
 /** Circular progress ring drawn with Cairo; text is real GTK labels (no manual text math). */
 export function Ring(props: {
     value: Accessor<number> // 0..100
-    icon: string
+    icon: string | Accessor<string>
     title: string
-    text: Accessor<string>
+    text?: Accessor<string>
     size?: number
     invertColor?: boolean
+    centerClass?: string
 }) {
     const size = props.size ?? 58
     const stroke = 6
@@ -59,14 +60,14 @@ export function Ring(props: {
                 />
                 <label
                     $type="overlay"
-                    class="ring-icon"
+                    class={props.centerClass ?? "ring-icon"}
                     label={props.icon}
                     halign={Gtk.Align.CENTER}
                     valign={Gtk.Align.CENTER}
                 />
             </overlay>
             <label class="ring-title" label={props.title} />
-            <label class="ring-value" label={props.text} />
+            {props.text ? <label class="ring-value" label={props.text} /> : <box />}
         </box>
     )
 }
