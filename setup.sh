@@ -852,7 +852,7 @@ restore_plasma_config() {
         for file in "${plasma_files[@]}"; do
             log_dry "Would backup + restore: $file"
         done
-        log_dry "Would set Plasma desktop theme to dark (breeze-dark or Orchis-dark)"
+        log_dry "Would set Plasma desktop theme to dark (breeze-dark or breath-dark)"
         log_dry "Would set Vimix cursor theme in kdeglobals, kcminputrc, Xresources, xprofile, gtkrc, gtk-3.0, gtk-4.0"
         log_ok "KDE Plasma settings (dry-run)"
         return 0
@@ -869,21 +869,10 @@ restore_plasma_config() {
     # Record which backup was created so rollback can find the latest
     echo "$backup_dir" > "$REAL_HOME/.config/.kde_last_backup"
 
-    # Detect installed dark Plasma SVG theme
+    # Ensure a fully compatible native Plasma 6 dark SVG theme for panels, tooltips and widgets
+    # Third-party themes like Orchis-dark (Plasma 5 API) cause illegible light tooltips in Plasma 6
     local plasma_theme="breeze-dark"
-    if [[ -d "/usr/share/plasma/desktoptheme/Orchis-dark" || -d "$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark" ]]; then
-        plasma_theme="Orchis-dark"
-        # Patch known upstream bug in Orchis-dark tooltip.svgz (accidental #fefefe white background)
-        local orchis_theme_dir="$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark"
-        for t_file in "$orchis_theme_dir/widgets/tooltip.svgz" \
-                      "$orchis_theme_dir/translucent/widgets/tooltip.svgz" \
-                      "$orchis_theme_dir/solid/widgets/tooltip.svgz"; do
-            if [[ -f "$t_file" ]] && gzip -dc "$t_file" 2>/dev/null | grep -q "color:#fefefe"; then
-                gzip -dc "$t_file" | sed -e 's/#fefefe/#282828/g' -e 's/#333333/#dfdfdf/g' | gzip -cn9 > "$t_file.tmp"
-                mv "$t_file.tmp" "$t_file"
-            fi
-        done
-    elif [[ -d "/usr/share/plasma/desktoptheme/breath-dark" ]]; then
+    if [[ ! -d "/usr/share/plasma/desktoptheme/breeze-dark" && -d "/usr/share/plasma/desktoptheme/breath-dark" ]]; then
         plasma_theme="breath-dark"
     fi
 
