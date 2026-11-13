@@ -17,7 +17,7 @@ function Mimosa(gdkmonitor: Gdk.Monitor) {
             gdkmonitor={gdkmonitor}
             application={app}
             anchor={TOP | LEFT}
-            layer={Astal.Layer.BACKGROUND}
+            layer={Astal.Layer.BOTTOM}
             exclusivity={Astal.Exclusivity.IGNORE}
             keymode={Astal.Keymode.NONE}
             marginTop={50}
