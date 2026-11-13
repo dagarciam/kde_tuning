@@ -74,7 +74,7 @@ function conky_media_time()   update_media_state(false); return media_state.time
 function conky_media_icon()   update_media_state(false); return media_state.icon end
 function conky_media_perc()   update_media_state(false); return tostring(media_state.perc) end
 
--- Modern, clean media progress bar
+-- Material You / Android Auto squiggly wave media progress bar
 local function draw_media_wave_bar(cr, log_f)
     if media_state.status == "" or media_state.status == "Stopped" then
         return
@@ -89,29 +89,49 @@ local function draw_media_wave_bar(cr, log_f)
     local base_y = 106.0 -- relative to card top
     local curr_x = x1 + (perc / 100.0) * (x2 - x1)
 
-    -- 1. Full unplayed track line (subtle background)
-    cairo_new_path(cr)
-    cairo_set_line_width(cr, 3.5)
-    if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
-    cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18)
-    cairo_move_to(cr, x1, base_y)
-    cairo_line_to(cr, x2, base_y)
-    cairo_stroke(cr)
+    -- 1. Unplayed portion (straight subtle track from thumb to end)
+    if curr_x < x2 then
+        cairo_new_path(cr)
+        cairo_set_line_width(cr, 2.5)
+        if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
+        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18)
+        cairo_move_to(cr, curr_x, base_y)
+        cairo_line_to(cr, x2, base_y)
+        cairo_stroke(cr)
+    end
 
-    -- 2. Played portion (solid accent green)
+    -- 2. Played portion (Material You wavy line when playing, flat when paused)
     if curr_x > x1 then
         cairo_new_path(cr)
-        cairo_set_line_width(cr, 3.5)
+        cairo_set_line_width(cr, 2.8)
         if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
+        if CAIRO_LINE_JOIN_ROUND then cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND) end
         cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 1.0) -- Accent Green (#32d74c)
-        cairo_move_to(cr, x1, base_y)
-        cairo_line_to(cr, curr_x, base_y)
-        cairo_stroke(cr)
+
+        if media_state.status == "Playing" and (curr_x - x1) > 8 then
+            wave_phase = (wave_phase + 0.10) % (2 * math.pi)
+            local wavelength = 16.0
+            local amplitude = 2.4
+
+            cairo_move_to(cr, x1, base_y)
+            for x = x1 + 1, curr_x do
+                local taper_start = math.min(1.0, (x - x1) / 8.0)
+                local taper_end = math.min(1.0, (curr_x - x) / 8.0)
+                local env = taper_start * taper_end
+                local wy = base_y + env * amplitude * math.sin((x - x1) * 2 * math.pi / wavelength - wave_phase)
+                cairo_line_to(cr, x, wy)
+            end
+            cairo_stroke(cr)
+        else
+            cairo_move_to(cr, x1, base_y)
+            cairo_line_to(cr, curr_x, base_y)
+            cairo_stroke(cr)
+        end
     end
 
     -- 3. Thumb indicator (clean white dot)
     cairo_new_path(cr)
-    cairo_arc(cr, curr_x, base_y, 4.0, 0, 2 * math.pi)
+    cairo_arc(cr, curr_x, base_y, 3.8, 0, 2 * math.pi)
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0)
     cairo_fill(cr)
 end

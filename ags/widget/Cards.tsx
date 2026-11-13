@@ -255,11 +255,79 @@ export function MediaCard() {
                     />
                 </box>
             </box>
-            <levelbar
-                class="media-bar"
-                minValue={0}
-                maxValue={100}
-                value={media.as((m) => m.percent)}
+            <drawingarea
+                hexpand
+                $={(area: Gtk.DrawingArea) => {
+                    let wavePhase = 0
+                    area.set_content_height(14)
+                    media.subscribe(() => area.queue_draw())
+                    area.set_draw_func((_a, cr, w, h) => {
+                        const m = media.peek()
+                        const pad = 4
+                        const x1 = pad
+                        const x2 = Math.max(pad + 1, w - pad)
+                        const baseY = h / 2
+                        const perc = Math.max(0, Math.min(100, m.percent || 0))
+                        const currX = x1 + (perc / 100) * (x2 - x1)
+
+                        if (!m.status || m.status === "Stopped") {
+                            cr.setLineWidth(2.5)
+                            cr.setLineCap(1) // ROUND
+                            cr.setSourceRGBA(1, 1, 1, 0.12)
+                            cr.moveTo(x1, baseY)
+                            cr.lineTo(x2, baseY)
+                            cr.stroke()
+                            return
+                        }
+
+                        // 1. Unplayed portion
+                        if (currX < x2) {
+                            cr.setLineWidth(2.5)
+                            cr.setLineCap(1)
+                            cr.setSourceRGBA(1, 1, 1, 0.18)
+                            cr.moveTo(currX, baseY)
+                            cr.lineTo(x2, baseY)
+                            cr.stroke()
+                        }
+
+                        // 2. Played portion (squiggly wave when playing, flat when paused)
+                        if (currX > x1) {
+                            cr.setLineWidth(2.8)
+                            cr.setLineCap(1)
+                            cr.setLineJoin(1) // ROUND
+                            cr.setSourceRGBA(0.196, 0.8431, 0.298, 1) // #32d74c
+                            if (m.status === "Playing" && currX - x1 > 8) {
+                                const wavelength = 16
+                                const amplitude = 2.4
+                                cr.moveTo(x1, baseY)
+                                for (let x = x1 + 1; x <= currX; x += 1) {
+                                    const taperStart = Math.min(1, (x - x1) / 8)
+                                    const taperEnd = Math.min(1, (currX - x) / 8)
+                                    const env = taperStart * taperEnd
+                                    const wy = baseY + env * amplitude * Math.sin(((x - x1) * 2 * Math.PI) / wavelength - wavePhase)
+                                    cr.lineTo(x, wy)
+                                }
+                                cr.stroke()
+                            } else {
+                                cr.moveTo(x1, baseY)
+                                cr.lineTo(currX, baseY)
+                                cr.stroke()
+                            }
+                        }
+
+                        // 3. Thumb indicator
+                        cr.arc(currX, baseY, 3.8, 0, Math.PI * 2)
+                        cr.setSourceRGBA(1, 1, 1, 1)
+                        cr.fill()
+                    })
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                        if (media.peek().status === "Playing") {
+                            wavePhase = (wavePhase + 0.10) % (2 * Math.PI)
+                            area.queue_draw()
+                        }
+                        return GLib.SOURCE_CONTINUE
+                    })
+                }}
             />
         </box>
     )
