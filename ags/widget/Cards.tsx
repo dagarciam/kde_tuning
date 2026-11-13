@@ -86,20 +86,47 @@ export function RingsCard() {
     )
 }
 
+function drawRoundedRect(cr: any, x: number, y: number, w: number, h: number, r: number) {
+    const rad = Math.min(r, w / 2, h / 2)
+    cr.newSubPath()
+    cr.arc(x + w - rad, y + rad, rad, -Math.PI / 2, 0)
+    cr.arc(x + w - rad, y + h - rad, rad, 0, Math.PI / 2)
+    cr.arc(x + rad, y + h - rad, rad, Math.PI / 2, Math.PI)
+    cr.arc(x + rad, y + rad, rad, Math.PI, Math.PI * 1.5)
+    cr.closePath()
+}
+
+function getLoadRGBA(v: number): [number, number, number, number] {
+    if (v >= 80) return [1.0, 0.2705, 0.2274, 0.95]   // #ff453a
+    if (v >= 60) return [1.0, 0.6235, 0.0392, 0.95]   // #ff9f0a
+    return [0.1960, 0.8431, 0.2980, 0.95]             // #32d74c
+}
+
 function CoreRow(props: { n: number }) {
     return (
         <box class="core-row" spacing={6}>
             <label class="core-label" label={`C${pad2(props.n + 1)}`} />
-            <levelbar
-                class={stats.as((s) => {
-                    const v = s.cores[props.n] ?? 0
-                    return v >= 80 ? "core-bar crit" : v >= 60 ? "core-bar warn" : "core-bar"
-                })}
+            <drawingarea
                 hexpand
                 valign={Gtk.Align.CENTER}
-                minValue={0}
-                maxValue={1}
-                value={stats.as((s) => (s.cores[props.n] ?? 0) / 100)}
+                $={(area: Gtk.DrawingArea) => {
+                    area.set_content_height(6)
+                    stats.subscribe(() => area.queue_draw())
+                    area.set_draw_func((_a, cr, w, h) => {
+                        const v = Math.max(0, Math.min(100, stats.peek().cores[props.n] ?? 0))
+                        const r = h / 2
+                        cr.setSourceRGBA(1, 1, 1, 0.12)
+                        drawRoundedRect(cr, 0, 0, w, h, r)
+                        cr.fill()
+                        if (v > 0) {
+                            const fillW = Math.min(w, Math.max(h, (v / 100) * w))
+                            const [crR, crG, crB, crA] = getLoadRGBA(v)
+                            cr.setSourceRGBA(crR, crG, crB, crA)
+                            drawRoundedRect(cr, 0, 0, fillW, h, r)
+                            cr.fill()
+                        }
+                    })
+                }}
             />
             <label class="core-pct" label={stats.as((s) => pct(s.cores[props.n] ?? 0))} />
         </box>
@@ -148,25 +175,49 @@ export function CpuCard() {
     )
 }
 
+const DISK_PALETTE: [number, number, number, number][] = [
+    [1.0, 0.2705, 0.2235, 1.0],   // Coral red
+    [0.1960, 0.8431, 0.2980, 1.0], // Bright green
+    [0.0, 0.7843, 1.0, 1.0],       // Cyan
+    [1.0, 0.6235, 0.0392, 1.0],    // Amber orange
+]
+
 export function StorageCard() {
     return (
         <box orientation={V} class="card storage" spacing={6}>
             <label class="card-title" halign={START} label="Storage" />
             <For each={disks}>
-                {(d) => (
-                    <box orientation={V} class="disk" spacing={2}>
-                        <box>
-                            <label class="small" label={`${d.label}: ${Math.round((d.used / d.size) * 100)}% (${fmtBytes(d.used)} / ${fmtBytes(d.size)})`} />
-                            <label class="small free" hexpand halign={END} label={`Free: ${fmtBytes(d.size - d.used, 0)}`} />
+                {(d) => {
+                    const idx = Math.max(0, disks.peek().indexOf(d))
+                    const color = DISK_PALETTE[idx % DISK_PALETTE.length]
+                    const ratio = d.size ? Math.max(0, Math.min(1, d.used / d.size)) : 0
+                    return (
+                        <box orientation={V} class="disk" spacing={2}>
+                            <box>
+                                <label class="small" label={`${d.label}: ${Math.round(ratio * 100)}% (${fmtBytes(d.used)} / ${fmtBytes(d.size)})`} />
+                                <label class="small free" hexpand halign={END} label={`Free: ${fmtBytes(d.size - d.used, 0)}`} />
+                            </box>
+                            <drawingarea
+                                hexpand
+                                $={(area: Gtk.DrawingArea) => {
+                                    area.set_content_height(12)
+                                    area.set_draw_func((_a, cr, w, h) => {
+                                        const r = h / 2
+                                        cr.setSourceRGBA(1, 1, 1, 0.12)
+                                        drawRoundedRect(cr, 0, 0, w, h, r)
+                                        cr.fill()
+                                        if (ratio > 0) {
+                                            const fillW = Math.min(w, Math.max(h, ratio * w))
+                                            cr.setSourceRGBA(color[0], color[1], color[2], color[3])
+                                            drawRoundedRect(cr, 0, 0, fillW, h, r)
+                                            cr.fill()
+                                        }
+                                    })
+                                }}
+                            />
                         </box>
-                        <levelbar
-                            class="disk-bar"
-                            minValue={0}
-                            maxValue={1}
-                            value={d.size ? d.used / d.size : 0}
-                        />
-                    </box>
-                )}
+                    )
+                }}
             </For>
         </box>
     )
