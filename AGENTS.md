@@ -14,6 +14,7 @@ Este repositorio contiene la configuración, scripts de automatización y temas 
 * **`conky/`**: Configuración y scripts auxiliares del tema Conky Mimosa (Lua, Bash, playerctl).
 * **`plasma/`**: Archivos de configuración de KDE Plasma (`kdeglobals`, `kwinrc`, `plasma-org.kde.plasma.desktop-appletsrc`, etc.).
 * **`sddm/`**: Configuración del display manager SDDM.
+* **`x11/`**: Configuración de servidor X11 (touchpad libinput, tapping y natural scrolling).
 * **`zsh/`**: Dotfiles para Zsh y temas como Powerlevel10k.
 
 ---

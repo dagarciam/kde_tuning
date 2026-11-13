@@ -484,7 +484,7 @@ install_dependencies() {
 }
 
 configure_x11_session() {
-    log_progress "$1" "$2" "Configuring Plasma X11 as default session"
+    log_progress "$1" "$2" "Configuring Plasma X11 as default session & touchpad"
 
     if [ ! -f /usr/share/xsessions/plasmax11.desktop ] && ! $DRY_RUN; then
         log_warn "plasmax11.desktop not found. SDDM config may not work until next reboot."
@@ -499,6 +499,15 @@ configure_x11_session() {
         return 1
     fi
 
+    local xorg_dir="/etc/X11/xorg.conf.d"
+    local touchpad_conf="$xorg_dir/30-touchpad.conf"
+    local template_touchpad="$REPO_DIR/x11/30-touchpad.conf"
+
+    if [ ! -f "$template_touchpad" ]; then
+        echo -e "${RED}Missing touchpad template: $template_touchpad${NC}" >&2
+        return 1
+    fi
+
     if $DRY_RUN; then
         log_dry "mkdir -p $conf_dir"
         log_dry "cp $template_conf $sddm_conf"
@@ -506,6 +515,9 @@ configure_x11_session() {
         log_dry "write /var/lib/sddm/state.conf"
         log_dry "write /var/lib/sddm/.config/state.conf"
         log_dry "chown -R sddm:sddm /var/lib/sddm"
+        log_dry "mkdir -p $xorg_dir"
+        log_dry "cp $template_touchpad $touchpad_conf"
+        log_dry "Would apply X11 natural scrolling live via xinput (if DISPLAY active)"
     else
         log_info "Copying SDDM template to $sddm_conf..."
         run_as_root mkdir -p "$conf_dir"
@@ -521,9 +533,30 @@ User=$REAL_USER
 EOF
         done
         run_as_root chown -R sddm:sddm /var/lib/sddm
+
+        log_info "Deploying X11 touchpad configuration to $touchpad_conf..."
+        run_as_root mkdir -p "$xorg_dir"
+        run_as_root cp "$template_touchpad" "$touchpad_conf"
+
+        if [[ -n "${DISPLAY:-}" ]] && command -v xinput &>/dev/null; then
+            local run_as_user=()
+            if [[ "$EUID" -eq 0 && -n "${SUDO_USER:-}" ]]; then
+                run_as_user=(sudo -u "$REAL_USER" DISPLAY="$DISPLAY")
+                [[ -n "${XAUTHORITY:-}" ]] && run_as_user+=(XAUTHORITY="$XAUTHORITY")
+            fi
+            while read -r dev_id; do
+                if [[ -n "$dev_id" ]]; then
+                    "${run_as_user[@]}" xinput set-prop "$dev_id" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
+                fi
+            done < <("${run_as_user[@]}" xinput list --id-only 2>/dev/null | while read -r id; do
+                if "${run_as_user[@]}" xinput list-props "$id" 2>/dev/null | grep -q "libinput Natural Scrolling Enabled"; then
+                    echo "$id"
+                fi
+            done)
+        fi
     fi
 
-    log_ok "SDDM configured for Plasma X11"
+    log_ok "SDDM and X11 touchpad configured"
 }
 
 setup_fstab() {

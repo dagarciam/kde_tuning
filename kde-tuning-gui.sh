@@ -30,7 +30,7 @@ APP_TITLE="KDE Tuning Installer"
 
 declare -A STEP_LABELS=(
     [deps]="System Dependencies (pacman/yay)"
-    [x11]="Plasma X11 SDDM Session"
+    [x11]="Plasma X11 SDDM Session & Touchpad"
     [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
     [fonts]="Fonts (Abel, custom TTF)"

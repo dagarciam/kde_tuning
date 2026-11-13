@@ -162,6 +162,7 @@ El repositorio respalda y restaura automáticamente (con backup previo en `~/.co
 - Reglas de ventanas y efectos de KWin (`kwinrc`).
 - Esquema de colores, fuentes e iconos (`kdeglobals`).
 - Sesión de Plasma en **X11 por defecto** (`state.conf` de SDDM).
+- Configuración de touchpad en **X11** (`/etc/X11/xorg.conf.d/30-touchpad.conf` con toque y desplazamiento natural).
 
 ### 5. Cursor Vimix en todo el sistema
 El cursor se configura en todas las capas para garantizar consistencia total:
