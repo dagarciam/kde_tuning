@@ -86,7 +86,14 @@ function CoreRow(props: { n: number }) {
     return (
         <box class="core-row" spacing={6}>
             <label class="core-label" label={`C${pad2(props.n + 1)}`} />
-            <progressbar class="core-bar" hexpand valign={Gtk.Align.CENTER} fraction={stats.as((s) => (s.cores[props.n] ?? 0) / 100)} />
+            <levelbar
+                class="core-bar"
+                hexpand
+                valign={Gtk.Align.CENTER}
+                minValue={0}
+                maxValue={1}
+                value={stats.as((s) => (s.cores[props.n] ?? 0) / 100)}
+            />
             <label class="core-pct" label={stats.as((s) => pct(s.cores[props.n] ?? 0))} />
         </box>
     )
@@ -139,7 +146,12 @@ export function StorageCard() {
                             <label class="small" label={`${d.label}: ${Math.round((d.used / d.size) * 100)}% (${fmtBytes(d.used)} / ${fmtBytes(d.size)})`} />
                             <label class="small free" hexpand halign={END} label={`Free: ${fmtBytes(d.size - d.used, 0)}`} />
                         </box>
-                        <progressbar class="disk-bar" fraction={d.size ? d.used / d.size : 0} />
+                        <levelbar
+                            class="disk-bar"
+                            minValue={0}
+                            maxValue={1}
+                            value={d.size ? d.used / d.size : 0}
+                        />
                     </box>
                 )}
             </For>

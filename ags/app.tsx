@@ -40,6 +40,9 @@ function Mimosa(gdkmonitor: Gdk.Monitor) {
 
 app.start({
     instanceName: "mimosa",
+    requestHandler(request, res) {
+        res("ok")
+    },
     css: `${root}/style.css`,
     main() {
         startPollers()

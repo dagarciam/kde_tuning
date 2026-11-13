@@ -49,14 +49,15 @@ label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
 .ring-value, .core-pct { font-feature-settings: "tnum"; }
 
 /* ---- bars ---- */
-progressbar trough { min-height: 6px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.12); border: none; }
-progressbar progress { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
+levelbar trough { min-height: 6px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.12); border: none; padding: 0; }
+levelbar block.filled { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
+levelbar block.empty { background-color: transparent; border: none; }
 .disk-bar trough { min-height: 12px; border-radius: 6px; }
-.disk-bar progress { min-height: 12px; border-radius: 6px; background-color: @red; }
+.disk-bar block.filled { min-height: 12px; border-radius: 6px; background-color: @red; }
 .free { color: @green; }
 
 /* ---- media ---- */
-.cover { border-radius: 32px; min-width: 64px; min-height: 64px; overflow: hidden; background-color: #0a84ff; }
+.cover { border-radius: 32px; min-width: 64px; min-height: 64px; background-color: #0a84ff; }
 .media-label { color: @green; font-weight: bold; font-size: 16px; }
 .media-title { font-weight: bold; font-size: 17px; }
 
