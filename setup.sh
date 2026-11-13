@@ -304,7 +304,7 @@ preflight_checks() {
 
     # Only check dirs/files needed for the selected steps
     local check_all=false
-    local steps_needing_files=(deps repos fonts conky zsh plasma)
+    local steps_needing_files=(deps x11 repos fonts conky zsh plasma)
     for step in "${SELECTED_STEPS[@]}"; do
         for needs in "${steps_needing_files[@]}"; do
             [[ "$step" == "$needs" ]] && check_all=true && break 2
@@ -317,8 +317,10 @@ preflight_checks() {
         ensure_dir "$REPO_DIR/plasma"
         ensure_dir "$REPO_DIR/zsh"
         ensure_dir "$REPO_DIR/sddm"
+        ensure_dir "$REPO_DIR/x11"
 
         ensure_file "$REPO_DIR/sddm/kde_settings.conf"
+        ensure_file "$REPO_DIR/x11/30-touchpad.conf"
         ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
         ensure_file "$REPO_DIR/zsh/.zshrc"
         ensure_file "$REPO_DIR/zsh/.p10k.zsh"
@@ -449,7 +451,7 @@ install_dependencies() {
         "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools" "ttf-hack-nerd" "imagemagick"
-        "appmenu-gtk-module"
+        "appmenu-gtk-module" "xorg-xinput"
     )
 
     local x11_pkg
@@ -793,7 +795,7 @@ setup_zsh() {
 restore_plasma_config() {
     log_progress "$1" "$2" "Restoring KDE Plasma configuration"
     local plasma_files=(
-        "plasma-org.kde.plasma.desktop-appletsrc" "plasmashellrc"
+        "plasmarc" "plasma-org.kde.plasma.desktop-appletsrc" "plasmashellrc"
         "kglobalshortcutsrc" "kwinrc" "kdeglobals" "kactivitymanagerdrc"
     )
 
@@ -804,6 +806,7 @@ restore_plasma_config() {
         for file in "${plasma_files[@]}"; do
             log_dry "Would backup + restore: $file"
         done
+        log_dry "Would set Plasma desktop theme to dark (breeze-dark or Orchis-dark)"
         log_dry "Would set Vimix cursor theme in kdeglobals, kcminputrc, Xresources, xprofile, gtkrc, gtk-3.0, gtk-4.0"
         log_ok "KDE Plasma settings (dry-run)"
         return 0
@@ -820,7 +823,15 @@ restore_plasma_config() {
     # Record which backup was created so rollback can find the latest
     echo "$backup_dir" > "$REAL_HOME/.config/.kde_last_backup"
 
-    # Set Vimix cursor theme in kdeglobals and kcminputrc
+    # Detect installed dark Plasma SVG theme
+    local plasma_theme="breeze-dark"
+    if [[ -d "/usr/share/plasma/desktoptheme/Orchis-dark" || -d "$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark" ]]; then
+        plasma_theme="Orchis-dark"
+    elif [[ -d "/usr/share/plasma/desktoptheme/breath-dark" ]]; then
+        plasma_theme="breath-dark"
+    fi
+
+    # Set theme configuration in plasmarc, kdeglobals and kcminputrc
     local kwrite
     if command -v kwriteconfig6 &> /dev/null; then
         kwrite="kwriteconfig6"
@@ -831,11 +842,22 @@ restore_plasma_config() {
     fi
 
     if [[ -n "$kwrite" ]]; then
+        "$kwrite" --file "$REAL_HOME/.config/plasmarc" --group Theme --key name "$plasma_theme"
         "$kwrite" --file "$REAL_HOME/.config/kdeglobals"  --group Icons --key cursorTheme "Vimix-cursors"
         "$kwrite" --file "$REAL_HOME/.config/kcminputrc"  --group Mouse --key cursorTheme "Vimix-cursors"
+
+        # Fallback LookAndFeelPackage if Orchis is not installed
+        if [[ ! -d "/usr/share/plasma/look-and-feel/com.github.vinceliuice.Orchis-dark" && ! -d "$REAL_HOME/.local/share/plasma/look-and-feel/com.github.vinceliuice.Orchis-dark" ]]; then
+            local fallback_lnf="org.kde.breezedark.desktop"
+            [[ -d "/usr/share/plasma/look-and-feel/org.manjaro.breath-dark.desktop" ]] && fallback_lnf="org.manjaro.breath-dark.desktop"
+            "$kwrite" --file "$REAL_HOME/.config/kdeglobals" --group KDE --key LookAndFeelPackage "$fallback_lnf"
+        fi
+
+        log_ok "Plasma desktop theme set to $plasma_theme"
         log_ok "Cursor theme set to Vimix-cursors"
     else
         mkdir -p "$REAL_HOME/.config"
+        set_ini_key "$REAL_HOME/.config/plasmarc" "Theme" "name" "$plasma_theme"
         if grep -q "^\[Icons\]" "$REAL_HOME/.config/kdeglobals" 2>/dev/null; then
             sed -i '/^\[Icons\]/,/^\[/{s/^cursorTheme=.*/cursorTheme=Vimix-cursors/}' "$REAL_HOME/.config/kdeglobals"
         else
@@ -846,7 +868,7 @@ restore_plasma_config() {
         else
             printf '\n[Mouse]\ncursorTheme=Vimix-cursors\n' >> "$REAL_HOME/.config/kcminputrc"
         fi
-        log_ok "Cursor theme set to Vimix-cursors (fallback method)"
+        log_ok "Plasma desktop theme and cursors set (fallback method)"
     fi
 
     mkdir -p "$REAL_HOME/.icons/default"
