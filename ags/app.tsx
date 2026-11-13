@@ -8,7 +8,7 @@ declare const SRC: string
 const root = typeof SRC !== "undefined" ? SRC : GLib.get_current_dir()
 
 function Mimosa(gdkmonitor: Gdk.Monitor) {
-    const { TOP, RIGHT } = Astal.WindowAnchor
+    const { TOP, LEFT } = Astal.WindowAnchor
     return (
         <window
             visible
@@ -16,12 +16,12 @@ function Mimosa(gdkmonitor: Gdk.Monitor) {
             class="mimosa"
             gdkmonitor={gdkmonitor}
             application={app}
-            anchor={TOP | RIGHT}
+            anchor={TOP | LEFT}
             layer={Astal.Layer.BACKGROUND}
             exclusivity={Astal.Exclusivity.IGNORE}
             keymode={Astal.Keymode.NONE}
             marginTop={50}
-            marginRight={30}
+            marginLeft={30}
         >
             <box orientation={Gtk.Orientation.VERTICAL} class="column" spacing={10} widthRequest={300}>
                 <Clock />
@@ -48,3 +48,4 @@ app.start({
         if (mon) Mimosa(mon)
     },
 })
+

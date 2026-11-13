@@ -129,3 +129,4 @@ export function readVram(drmDevPath: string): { total: number; used: number } {
         used: readNum(`${drmDevPath}/mem_info_vram_used`),
     }
 }
+

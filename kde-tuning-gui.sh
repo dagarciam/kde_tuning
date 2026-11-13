@@ -34,13 +34,14 @@ declare -A STEP_LABELS=(
     [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
     [fonts]="Fonts (Abel, custom TTF)"
-    [ags]="Mimosa AGS Widget (Wayland)"
+    [conky]="Conky Mimosa Widget (Right Side)"
+    [ags]="Mimosa AGS Widget (Left Side - Wayland)"
     [zsh]="Zsh & Powerlevel10k Config"
     [plasma]="KDE Plasma Settings & Cursor Theme"
     [session]="Apply Session Changes (Plasma restart)"
 )
 
-ALL_STEPS=(deps x11 fstab repos fonts ags zsh plasma session)
+ALL_STEPS=(deps x11 fstab repos fonts conky ags zsh plasma session)
 
 # --- Helper: show a checklist dialog and return selected items ---
 select_modules() {

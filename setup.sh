@@ -11,7 +11,7 @@ set -Eeuo pipefail
 #
 # Options:
 #   --steps <list>     Comma-separated list of steps to run.
-#                      Steps: deps,x11,fstab,repos,fonts,ags,zsh,plasma,session
+#                      Steps: deps,x11,fstab,repos,fonts,conky,ags,zsh,plasma,session
 #   --dry-run          Simulate all changes without modifying files or system.
 #   --no-restart       Skip Plasma Shell restart at the end.
 #   --gui-mode         Emit structured log prefixes for GUI consumption.
@@ -41,7 +41,7 @@ ROLLBACK_DIR=""
 SELECTED_STEPS=()
 
 # All available steps in execution order
-ALL_STEPS=(deps x11 fstab repos fonts ags zsh plasma session)
+ALL_STEPS=(deps x11 fstab repos fonts conky ags zsh plasma session)
 
 # Log file (unique per run, based on timestamp)
 LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -304,7 +304,7 @@ preflight_checks() {
 
     # Only check dirs/files needed for the selected steps
     local check_all=false
-    local steps_needing_files=(deps x11 repos fonts ags zsh plasma)
+    local steps_needing_files=(deps x11 repos fonts conky ags zsh plasma)
     for step in "${SELECTED_STEPS[@]}"; do
         for needs in "${steps_needing_files[@]}"; do
             [[ "$step" == "$needs" ]] && check_all=true && break 2
@@ -312,8 +312,8 @@ preflight_checks() {
     done
 
     if $check_all || [[ ${#SELECTED_STEPS[@]} -eq ${#ALL_STEPS[@]} ]]; then
+        ensure_dir "$REPO_DIR/conky/Mimosa"
         ensure_dir "$REPO_DIR/ags"
-        ensure_dir "$REPO_DIR/ags/fonts"
         ensure_dir "$REPO_DIR/plasma"
         ensure_dir "$REPO_DIR/zsh"
         ensure_dir "$REPO_DIR/sddm"
@@ -321,10 +321,11 @@ preflight_checks() {
 
         ensure_file "$REPO_DIR/sddm/kde_settings.conf"
         ensure_file "$REPO_DIR/x11/30-touchpad.conf"
+        ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
         ensure_file "$REPO_DIR/ags/mimosa-ags.desktop"
         ensure_file "$REPO_DIR/zsh/.zshrc"
         ensure_file "$REPO_DIR/zsh/.p10k.zsh"
-        ensure_file "$REPO_DIR/ags/fonts/Abel-Regular.ttf"
+        ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel-Regular.ttf"
     fi
 }
 
@@ -448,7 +449,7 @@ install_dependencies() {
     ensure_cmd pacman
 
     PKGS=(
-        "gjs" "gtk4-layer-shell" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
+        "conky" "gjs" "gtk4-layer-shell" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools" "ttf-hack-nerd" "imagemagick"
         "appmenu-gtk-module" "xorg-xinput"
@@ -782,21 +783,71 @@ install_fonts() {
     log_ok "Fonts installed"
 }
 
+setup_conky() {
+    log_progress "$1" "$2" "Setting up Conky Mimosa (Right Side)"
+    ensure_dir "$REPO_DIR/conky/Mimosa"
+    ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
+
+    dry_mkdir "$REAL_HOME/.config/conky"
+    if $DRY_RUN; then
+        log_dry "cp -r $REPO_DIR/conky/Mimosa $REAL_HOME/.config/conky/"
+        log_dry "chmod +x .config/conky/Mimosa/start.sh + scripts/*"
+        log_dry "Run hardware auto-detection (.config/conky/Mimosa/scripts/hw-detect.sh)"
+        log_dry "cp conky-mimosa.desktop $REAL_HOME/.config/autostart/"
+        log_dry "Set Exec path in $REAL_HOME/.config/autostart/conky-mimosa.desktop"
+        log_dry "Would restart Conky if currently running"
+    else
+        cp -r "$REPO_DIR"/conky/Mimosa "$REAL_HOME/.config/conky/"
+        chmod +x "$REAL_HOME/.config/conky/Mimosa/start.sh"
+        chmod +x "$REAL_HOME/.config/conky/Mimosa/scripts"/*
+        if [[ -x "$REAL_HOME/.config/conky/Mimosa/scripts/hw-detect.sh" ]]; then
+            log_info "Detecting hardware profile for Conky..."
+            "$REAL_HOME/.config/conky/Mimosa/scripts/hw-detect.sh" || log_warn "Hardware auto-detection reported a non-fatal warning"
+        fi
+        mkdir -p "$REAL_HOME/.config/autostart"
+        cp "$REPO_DIR"/conky/conky-mimosa.desktop "$REAL_HOME/.config/autostart/"
+        sed -i -E "s|^Exec=.*|Exec=${REAL_HOME}/.config/conky/Mimosa/start.sh|" "$REAL_HOME/.config/autostart/conky-mimosa.desktop"
+
+        if command -v systemctl &>/dev/null; then
+            systemctl --user daemon-reload 2>/dev/null || true
+        fi
+
+        # Initialize cover art cache if missing
+        if [[ ! -f /tmp/conky_cover.png && -f "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" ]]; then
+            cp "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png
+        fi
+
+        # Stop any stale instances
+        pkill -9 -x conky 2>/dev/null || true
+        sleep 1
+
+        # Launch Conky if an active display is present
+        if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+            log_info "Starting Conky Mimosa..."
+            if [[ -x "$REAL_HOME/.config/conky/Mimosa/start.sh" ]]; then
+                "$REAL_HOME/.config/conky/Mimosa/start.sh"
+            fi
+        else
+            log_info "No display detected; Conky will autostart upon graphical login."
+        fi
+    fi
+
+    log_ok "Conky setup complete"
+}
+
 setup_ags() {
-    log_progress "$1" "$2" "Setting up Mimosa AGS widget"
+    log_progress "$1" "$2" "Setting up Mimosa AGS widget (Left Side)"
     ensure_dir "$REPO_DIR/ags"
     ensure_file "$REPO_DIR/ags/mimosa-ags.desktop"
     ensure_file "$REPO_DIR/ags/app.tsx"
 
     local dest="$REAL_HOME/.config/mimosa-ags"
-    local legacy_autostart="$REAL_HOME/.config/autostart/conky-mimosa.desktop"
 
     if $DRY_RUN; then
         log_dry "mkdir -p $dest && cp -rT $REPO_DIR/ags $dest"
         log_dry "chmod +x $dest/start.sh + scripts/*"
         log_dry "cp mimosa-ags.desktop $REAL_HOME/.config/autostart/"
         log_dry "Set Exec path in $REAL_HOME/.config/autostart/mimosa-ags.desktop"
-        log_dry "Would disable legacy Conky autostart (if present): $legacy_autostart"
         log_dry "Would (re)start the widget if running inside a Wayland session"
         log_ok "AGS widget setup (dry-run)"
         return 0
@@ -809,15 +860,9 @@ setup_ags() {
     cp "$REPO_DIR/ags/mimosa-ags.desktop" "$REAL_HOME/.config/autostart/"
     sed -i -E "s|^Exec=.*|Exec=${dest}/start.sh|" "$REAL_HOME/.config/autostart/mimosa-ags.desktop"
 
-    # Migration: Conky is replaced by AGS. Keep the old autostart as a backup instead of deleting it.
-    if [[ -f "$legacy_autostart" ]]; then
-        mv -f "$legacy_autostart" "$legacy_autostart.disabled"
-        log_info "Legacy Conky autostart disabled ($legacy_autostart.disabled)"
-    fi
-
     if ! command -v ags &> /dev/null; then
-        log_warn "ags not found. Run the deps step (or install aylurs-gtk-shell from the AUR) and re-run."
-    elif [[ "${XDG_SESSION_TYPE:-}" != "wayland" ]]; then
+        log_warn "ags not found. Install aylurs-gtk-shell from the AUR and re-run."
+    elif [[ "${XDG_SESSION_TYPE:-}" != "wayland" && -z "${WAYLAND_DISPLAY:-}" ]]; then
         log_info "Not in a Wayland session; the widget will start at your next Plasma (Wayland) login."
     else
         log_info "Starting Mimosa AGS widget..."
@@ -1097,7 +1142,8 @@ for step in "${ALL_STEPS[@]}"; do
             fstab)   run_step "Configure fstab automounts"   setup_fstab             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             repos)   run_step "Install external repos"       install_external_repos  "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             fonts)   run_step "Install fonts"                install_fonts           "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            ags)     run_step "Setup AGS widget"           setup_ags               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            conky)   run_step "Setup Conky (Right Side)"     setup_conky             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            ags)     run_step "Setup AGS widget (Left Side)" setup_ags               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             zsh)     run_step "Setup Zsh"                    setup_zsh               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             plasma)  run_step "Restore Plasma config"        restore_plasma_config   "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             session) run_step "Apply session changes"        apply_session_changes   "$CURRENT_STEP" "$TOTAL_STEPS" ;;

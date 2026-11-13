@@ -20,3 +20,4 @@ export function fmtShort(n: number): string {
 export const pct = (n: number) => `${Math.round(n)}%`
 
 export const pad2 = (n: number) => String(n).padStart(2, "0")
+

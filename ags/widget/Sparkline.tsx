@@ -25,3 +25,4 @@ export function Sparkline(props: { data: Accessor<number[]>; color: [number, num
         />
     )
 }
+

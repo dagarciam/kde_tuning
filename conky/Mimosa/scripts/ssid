@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# Dynamic WiFi / Ethernet status script for Conky Mimosa
+# Outputs: <icon>  <SSID or Ethernet>
+# Uses Hack Nerd Font icons
+
+# Detect active wireless interface automatically
+INTERFACE=""
+if command -v iw &>/dev/null; then
+    INTERFACE="$(iw dev 2>/dev/null | awk '/Interface/{print $2; exit}')"
+fi
+if [[ -z "$INTERFACE" ]]; then
+    for wpath in /sys/class/net/wl*; do
+        if [[ -e "$wpath" ]]; then
+            INTERFACE="$(basename "$wpath")"
+            break
+        fi
+    done
+fi
+[[ -z "$INTERFACE" ]] && INTERFACE="wlan0"
+
+# --- Signal strength → Nerd Font icon ---
+get_signal_icon() {
+    local sig=""
+    if command -v iw &>/dev/null; then
+        sig="$(iw dev "$INTERFACE" link 2>/dev/null | awk '/signal:/{print $2}')"
+    fi
+    if [[ -z "$sig" && -r /proc/net/wireless ]]; then
+        sig="$(awk -v iface="${INTERFACE}:" '$1 == iface {sub(/\./, "", $4); print $4}' /proc/net/wireless 2>/dev/null)"
+    fi
+
+    if [[ -z "$sig" || ! "$sig" =~ ^-?[0-9]+$ ]]; then
+        echo "󰤨"
+        return
+    fi
+
+    if   (( sig >= -50 )); then echo "󰤨"   # Excellent
+    elif (( sig >= -60 )); then echo "󰤥"   # Good
+    elif (( sig >= -70 )); then echo "󰤢"   # Fair
+    elif (( sig >= -80 )); then echo "󰤟"   # Weak
+    else                        echo "󰤯"   # Very weak
+    fi
+}
+
+# --- SSID name (multiple fallbacks) ---
+get_ssid() {
+    local ssid=""
+
+    # Method 1: iw (most direct)
+    if command -v iw &>/dev/null; then
+        ssid="$(iw dev "$INTERFACE" link 2>/dev/null | sed -n 's/^[[:space:]]*SSID: //p')"
+    fi
+
+    # Method 2: iw dev info
+    if [[ -z "$ssid" ]] && command -v iw &>/dev/null; then
+        ssid="$(iw dev 2>/dev/null | sed -n 's/^[[:space:]]*ssid[[:space:]]\+//p' | head -n 1)"
+    fi
+
+    # Method 3: nmcli active wireless connection
+    if [[ -z "$ssid" ]] && command -v nmcli &>/dev/null; then
+        ssid="$(nmcli -t -f TYPE,NAME connection show --active 2>/dev/null \
+               | awk -F: '$1 == "802-11-wireless" { sub(/^[^:]*:/, ""); print; exit }')"
+    fi
+
+    # Method 4: iwgetid
+    if [[ -z "$ssid" ]] && command -v iwgetid &>/dev/null; then
+        ssid="$(iwgetid -r 2>/dev/null)"
+    fi
+
+    # Truncate to 15 chars to fit the panel
+    if (( ${#ssid} > 15 )); then
+        ssid="${ssid:0:12}..."
+    fi
+
+    echo "$ssid"
+}
+
+# --- Main output ---
+SSID="$(get_ssid)"
+
+if [[ -n "$SSID" ]]; then
+    ICON="$(get_signal_icon)"
+    echo "$ICON  $SSID"
+    exit 0
+fi
+
+# Fallback: check if an Ethernet interface is active
+for eth_path in /sys/class/net/en* /sys/class/net/eth*; do
+    if [[ -r "$eth_path/operstate" ]] && [[ "$(cat "$eth_path/operstate" 2>/dev/null)" == "up" ]]; then
+        echo "󰈀  Ethernet"
+        exit 0
+    fi
+done
+
+echo "󰤭  Not Connected"
+exit 0
