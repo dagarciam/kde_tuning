@@ -59,7 +59,7 @@ export function NetworkCard() {
 export function RingsCard() {
     // 2nd ring: battery on laptops, VRAM (or swap) on desktops
     const second = hw.has_battery
-        ? { icon: "󰁹", title: "BAT", value: stats.as((s) => s.battery), text: stats.as((s) => pct(s.battery)) }
+        ? { icon: "󰁹", title: "BAT", invertColor: true, value: stats.as((s) => s.battery), text: stats.as((s) => pct(s.battery)) }
         : hw.vram_total > 0
           ? {
                 icon: "󰍹", title: "VRAM",
@@ -91,7 +91,10 @@ function CoreRow(props: { n: number }) {
         <box class="core-row" spacing={6}>
             <label class="core-label" label={`C${pad2(props.n + 1)}`} />
             <levelbar
-                class="core-bar"
+                class={stats.as((s) => {
+                    const v = s.cores[props.n] ?? 0
+                    return v >= 80 ? "core-bar crit" : v >= 60 ? "core-bar warn" : "core-bar"
+                })}
                 hexpand
                 valign={Gtk.Align.CENTER}
                 minValue={0}

@@ -52,6 +52,8 @@ label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
 levelbar trough { min-height: 6px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.12); border: none; padding: 0; }
 levelbar block.filled { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
 levelbar block.empty { background-color: transparent; border: none; }
+.core-bar.warn block.filled { background-color: #ff9f0a; }
+.core-bar.crit block.filled { background-color: #ff453a; }
 .disk-bar trough { min-height: 12px; border-radius: 6px; }
 .disk-bar block.filled { min-height: 12px; border-radius: 6px; background-color: @red; }
 .free { color: @green; }
