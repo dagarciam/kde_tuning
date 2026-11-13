@@ -1,7 +1,9 @@
 import { For } from "ags"
 import { Gtk } from "ags/gtk4"
 import Gdk from "gi://Gdk?version=4.0"
+import GdkPixbuf from "gi://GdkPixbuf?version=2.0"
 import Gio from "gi://Gio?version=2.0"
+import GLib from "gi://GLib?version=2.0"
 import { fmtBytes, fmtShort, pad2, pct } from "../lib/format"
 import { coreGroups, disks, hw, media, ssid, stats, weather } from "../lib/store"
 import { Ring } from "./Ring"
@@ -162,34 +164,69 @@ export function StorageCard() {
 }
 
 export function MediaCard() {
+    let angle = 0
+    let pb: GdkPixbuf.Pixbuf | null = null
+    let lastTrackKey = ""
+
+    function loadCover(c: string) {
+        if (!c) {
+            pb = null
+            return
+        }
+        try {
+            pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(c, 58, 58, false)
+        } catch {
+            pb = null
+        }
+    }
+
     return (
         <box orientation={V} class="card media" spacing={8}>
             <box spacing={12} valign={Gtk.Align.CENTER}>
                 <box class="cover" valign={Gtk.Align.CENTER}>
-                    <Gtk.Picture
-                        class="cover-img"
-                        contentFit={Gtk.ContentFit.COVER}
-                        widthRequest={58}
-                        heightRequest={58}
-                        $={(pic: Gtk.Picture) => {
-                            let lastCover = ""
+                    <drawingarea
+                        $={(area: Gtk.DrawingArea) => {
+                            area.set_content_width(58)
+                            area.set_content_height(58)
+                            loadCover(media.peek().cover)
                             media.subscribe(() => {
-                                const c = media.peek().cover
-                                if (c) {
-                                    try {
-                                        const f = Gio.File.new_for_path(c)
-                                        pic.set_paintable(Gdk.Texture.new_from_file(f))
-                                        lastCover = c
-                                    } catch {
-                                        if (lastCover !== c) {
-                                            pic.set_filename(c)
-                                            lastCover = c
-                                        }
-                                    }
-                                } else {
-                                    pic.set_paintable(null)
-                                    lastCover = ""
+                                const m = media.peek()
+                                const trackKey = `${m.artist}|${m.title}|${m.cover}`
+                                if (trackKey !== lastTrackKey) {
+                                    lastTrackKey = trackKey
+                                    loadCover(m.cover)
+                                    area.queue_draw()
                                 }
+                            })
+                            area.set_draw_func((_a, cr, w, h) => {
+                                const cx = w / 2
+                                const cy = h / 2
+                                cr.save()
+                                cr.translate(cx, cy)
+                                cr.rotate(angle)
+                                cr.arc(0, 0, Math.min(w, h) / 2, 0, Math.PI * 2)
+                                cr.clip()
+                                if (pb) {
+                                    Gdk.cairo_set_source_pixbuf(cr, pb, -pb.get_width() / 2, -pb.get_height() / 2)
+                                    cr.paint()
+                                } else {
+                                    cr.setSourceRGBA(0.1, 0.1, 0.1, 1)
+                                    cr.paint()
+                                }
+                                cr.restore()
+                            })
+                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 50, () => {
+                                const st = media.peek().status
+                                if (st === "Playing") {
+                                    angle = (angle + 0.1745329) % (2 * Math.PI)
+                                    area.queue_draw()
+                                } else if (st === "Stopped" || !st) {
+                                    if (angle !== 0) {
+                                        angle = 0
+                                        area.queue_draw()
+                                    }
+                                }
+                                return GLib.SOURCE_CONTINUE
                             })
                         }}
                     />
