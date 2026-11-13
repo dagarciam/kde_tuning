@@ -74,13 +74,9 @@ function conky_media_time()   update_media_state(false); return media_state.time
 function conky_media_icon()   update_media_state(false); return media_state.icon end
 function conky_media_perc()   update_media_state(false); return tostring(media_state.perc) end
 
--- Material You / Android Auto squiggly wave bar
+-- Modern, clean media progress bar
 local function draw_media_wave_bar(cr, log_f)
-    if log_f then
-        log_f:write(string.format("wave_bar: status='%s', perc=%s\n", tostring(media_state.status), tostring(media_state.perc)))
-    end
     if media_state.status == "" or media_state.status == "Stopped" then
-        if log_f then log_f:write("wave_bar: stopped or empty, skipping\n") end
         return
     end
 
@@ -90,112 +86,34 @@ local function draw_media_wave_bar(cr, log_f)
 
     local x1 = 18
     local x2 = 282
-    local base_y = 106.0 -- relative to card top (Card 5 height 122)
+    local base_y = 106.0 -- relative to card top
     local curr_x = x1 + (perc / 100.0) * (x2 - x1)
 
-    if log_f then
-        log_f:write(string.format("CAIRO_LINE_CAP_ROUND=%s, CAIRO_LINE_JOIN_ROUND=%s, status_before=%d\n",
-            tostring(CAIRO_LINE_CAP_ROUND), tostring(CAIRO_LINE_JOIN_ROUND), cairo_status(cr)))
-    end
-
-    -- TEST inside draw_media_wave_bar:
-    cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0)
-    cairo_rectangle(cr, 10, 100, 50, 20)
-    cairo_fill(cr)
-
-    -- TEST simple stroke:
+    -- 1. Full unplayed track line (subtle background)
     cairo_new_path(cr)
-    cairo_set_line_width(cr, 6.0)
-    cairo_set_source_rgba(cr, 0.0, 1.0, 0.0, 1.0)
-    cairo_move_to(cr, 100, 106)
-    cairo_line_to(cr, 200, 106)
-    cairo_stroke(cr)
-
-    -- TEST native Cairo PNG loading:
-    local test_surf = cairo_image_surface_create_from_png("/tmp/conky_cover_8bit.png")
-    local s_status = -1
-    local img_w, img_h = 0, 0
-    if test_surf then
-        s_status = cairo_surface_status(test_surf)
-        img_w = cairo_image_surface_get_width(test_surf)
-        img_h = cairo_image_surface_get_height(test_surf)
-    end
-    if log_f then
-        log_f:write(string.format("test_surf=%s, status=%d, w=%d, h=%d\n",
-            tostring(test_surf), s_status, img_w, img_h))
-    end
-    if test_surf and s_status == 0 then
-        cairo_save(cr)
-        cairo_translate(cr, 20, 20)
-        cairo_set_source_surface(cr, test_surf, 0, 0)
-        cairo_paint(cr)
-        local post_st = cairo_status(cr)
-        cairo_restore(cr)
-        cairo_surface_destroy(test_surf)
-        if log_f then
-            log_f:write(string.format("post cairo_paint status = %d\n", post_st))
-        end
-    end
-
-    -- 1. Full unplayed track line
-    cairo_new_path(cr)
-    cairo_set_line_width(cr, 2.5)
+    cairo_set_line_width(cr, 3.5)
     if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.18)
     cairo_move_to(cr, x1, base_y)
     cairo_line_to(cr, x2, base_y)
     cairo_stroke(cr)
 
-    if log_f then
-        log_f:write(string.format("after step 1: cairo_status=%d\n", cairo_status(cr)))
-    end
-
-    -- 2. Played portion (Material You wavy line when playing, flat when paused)
-    local fg_color = {0.1960, 0.8431, 0.2980, 1.0} -- Accent Green (#32d74c)
-    cairo_set_source_rgba(cr, fg_color[1], fg_color[2], fg_color[3], fg_color[4])
-    cairo_set_line_width(cr, 2.8)
-    if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
-    if CAIRO_LINE_JOIN_ROUND then cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND) end
-
+    -- 2. Played portion (solid accent green)
     if curr_x > x1 then
         cairo_new_path(cr)
-        if media_state.status == "Playing" and (curr_x - x1) > 8 then
-            -- Fluid wave animation synced with frame rate
-            wave_phase = (wave_phase + 0.08) % (2 * math.pi)
-            local wavelength = 16.0
-            local amplitude = 2.4
-
-            cairo_move_to(cr, x1, base_y)
-            for x = x1 + 1, curr_x do
-                local taper_start = math.min(1.0, (x - x1) / 8.0)
-                local taper_end = math.min(1.0, (curr_x - x) / 8.0)
-                local env = taper_start * taper_end
-                local wy = base_y + env * amplitude * math.sin((x - x1) * 2 * math.pi / wavelength + wave_phase)
-                cairo_line_to(cr, x, wy)
-            end
-            cairo_stroke(cr)
-        else
-            -- Flat line when paused or very short
-            cairo_move_to(cr, x1, base_y)
-            cairo_line_to(cr, curr_x, base_y)
-            cairo_stroke(cr)
-        end
+        cairo_set_line_width(cr, 3.5)
+        if CAIRO_LINE_CAP_ROUND then cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND) end
+        cairo_set_source_rgba(cr, 0.1960, 0.8431, 0.2980, 1.0) -- Accent Green (#32d74c)
+        cairo_move_to(cr, x1, base_y)
+        cairo_line_to(cr, curr_x, base_y)
+        cairo_stroke(cr)
     end
 
-    if log_f then
-        log_f:write(string.format("after step 2: cairo_status=%d\n", cairo_status(cr)))
-    end
-
-    -- 3. Thumb indicator (rounded pill/dot)
-    cairo_new_sub_path(cr)
-    cairo_arc(cr, curr_x, base_y, 3.8, 0, 2 * math.pi)
+    -- 3. Thumb indicator (clean white dot)
+    cairo_new_path(cr)
+    cairo_arc(cr, curr_x, base_y, 4.0, 0, 2 * math.pi)
     cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 1.0)
     cairo_fill(cr)
-    cairo_new_path(cr)
-
-    if log_f then
-        log_f:write(string.format("after step 3: cairo_status=%d\n", cairo_status(cr)))
-    end
 end
 
 -- Renders the rotating classic vinyl LP disc at exactly 33.33 RPM
