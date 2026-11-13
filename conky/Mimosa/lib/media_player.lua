@@ -143,16 +143,35 @@ local function draw_media_vinyl(cr, log_f)
     end
 
     -- Draw rotated vinyl record using Cairo
-    -- TEST: Draw blue disc background to verify position
-    cairo_set_source_rgba(cr, 0.0, 0.5, 1.0, 1.0)
-    cairo_arc(cr, xc, yc, size / 2, 0, 2 * math.pi)
-    cairo_fill(cr)
+    local drawn = false
+    local surf = cairo_image_surface_create_from_png(cover_file)
+    if surf then
+        local s_status = cairo_surface_status(surf)
+        if s_status == 0 then
+            local img_w = cairo_image_surface_get_width(surf)
+            local img_h = cairo_image_surface_get_height(surf)
+            if img_w > 0 and img_h > 0 then
+                cairo_save(cr)
+                cairo_translate(cr, xc, yc)
+                cairo_rotate(cr, vinyl_angle)
+                cairo_scale(cr, size / img_w, size / img_h)
+                cairo_set_source_surface(cr, surf, -img_w / 2, -img_h / 2)
+                cairo_paint(cr)
+                cairo_restore(cr)
+                drawn = true
+            end
+        end
+        cairo_surface_destroy(surf)
+    end
 
-    -- cairo_save(cr)
-    -- cairo_translate(cr, xc, yc)
-    -- cairo_rotate(cr, vinyl_angle)
-    -- cairo_place_image(cover_file, cr, math.floor(-size / 2), math.floor(-size / 2), math.floor(size), math.floor(size), 1.0)
-    -- cairo_restore(cr)
+    if not drawn and cairo_place_image then
+        cairo_save(cr)
+        cairo_translate(cr, xc, yc)
+        cairo_rotate(cr, vinyl_angle)
+        cairo_place_image(cover_file, cr, math.floor(-size / 2), math.floor(-size / 2), math.floor(size), math.floor(size), 1.0)
+        cairo_restore(cr)
+        drawn = true
+    end
     if log_f then log_f:write("vinyl: finished cairo_place_image\n") end
 end
 

@@ -5,7 +5,7 @@ import { exec, execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import {
     CpuTimes, parseCpuList, readBattery, readCpuTimes, readGpuLoad, readMem, readNet,
-    readTempC, readVram, usage, cpuFreqGHz,
+    readTempC, readVram, usage, cpuFreqGHz, readText, fileExists,
 } from "./sys"
 
 declare const SRC: string
@@ -198,41 +198,65 @@ const [media, setMedia] = createState<Media>({
 })
 export { media }
 
-async function refreshMedia() {
+function parseMediaState(raw: string): Record<string, string> {
+    const out: Record<string, string> = {}
+    for (const line of raw.split("\n")) {
+        const m = line.match(/^PCTL_([A-Z]+)=(.*)$/)
+        if (m) {
+            let val = m[2].trim()
+            if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'))) {
+                val = val.slice(1, -1)
+            }
+            val = val.replace(/\\(.)/g, "$1")
+            out[m[1]] = val
+        }
+    }
+    return out
+}
+
+function refreshMedia() {
     try {
-        const script = `${SCRIPTS}/playerctl-info.sh`
-        const [status, artist, title, time, cover, percStr] = await Promise.all([
-            execAsync(["bash", script, "-s"]),
-            execAsync(["bash", script, "-a"]),
-            execAsync(["bash", script, "-t"]),
-            execAsync(["bash", script, "-p"]),
-            execAsync(["bash", script, "-c"]),
-            execAsync(["bash", script, "-perc"]),
-        ])
-        const percent = Math.max(0, Math.min(100, Number(percStr.trim()) || 0))
+        const text = readText("/tmp/conky_media_state")
+        if (!text) {
+            setMedia({
+                status: "Stopped",
+                artist: "Media Player",
+                title: "No music playing",
+                time: "Idle",
+                cover: "",
+                percent: 0,
+            })
+            return
+        }
+        const st = parseMediaState(text)
+        const status = st.STATUS || "Stopped"
+        const artist = st.ARTIST || "Media Player"
+        const title = st.TITLE || "No music playing"
+        const time = st.TIME || "Idle"
+        const percent = Math.max(0, Math.min(100, Number(st.PERC) || 0))
+        const cover = fileExists("/tmp/conky_cover.png") ? "/tmp/conky_cover.png" : ""
+
         setMedia({
-            status: status.trim() || "Stopped",
-            artist: artist.trim() || "Media Player",
-            title: title.trim() || "No music playing",
-            time: time.trim() || "Idle",
-            cover: cover.trim(),
+            status,
+            artist,
+            title,
+            time,
+            cover,
             percent,
         })
-    } catch {
-        setMedia({
-            status: "Stopped",
-            artist: "Media Player",
-            title: "No music playing",
-            time: "Idle",
-            cover: "",
-            percent: 0,
-        })
+    } catch (e) {
+        console.error("refreshMedia error:", e)
     }
 }
 
 export function startPollers() {
     tick()
-    GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, tick)
+    refreshMedia()
+    GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+        tick()
+        refreshMedia()
+        return GLib.SOURCE_CONTINUE
+    })
     const every = (sec: number, fn: () => Promise<void>) => {
         fn()
         GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, sec, () => {
@@ -243,6 +267,5 @@ export function startPollers() {
     every(600, refreshWeather)
     every(5, refreshSsid)
     every(15, refreshDisks)
-    every(2, refreshMedia)
 }
 

@@ -1,5 +1,7 @@
 import { For } from "ags"
 import { Gtk } from "ags/gtk4"
+import Gdk from "gi://Gdk?version=4.0"
+import Gio from "gi://Gio?version=2.0"
 import { fmtBytes, fmtShort, pad2, pct } from "../lib/format"
 import { coreGroups, disks, hw, media, ssid, stats, weather } from "../lib/store"
 import { Ring } from "./Ring"
@@ -170,9 +172,24 @@ export function MediaCard() {
                         widthRequest={58}
                         heightRequest={58}
                         $={(pic: Gtk.Picture) => {
+                            let lastCover = ""
                             media.subscribe(() => {
                                 const c = media.peek().cover
-                                pic.set_filename(c || null)
+                                if (c) {
+                                    try {
+                                        const f = Gio.File.new_for_path(c)
+                                        pic.set_paintable(Gdk.Texture.new_from_file(f))
+                                        lastCover = c
+                                    } catch {
+                                        if (lastCover !== c) {
+                                            pic.set_filename(c)
+                                            lastCover = c
+                                        }
+                                    }
+                                } else {
+                                    pic.set_paintable(null)
+                                    lastCover = ""
+                                }
                             })
                         }}
                     />
@@ -197,7 +214,7 @@ export function MediaCard() {
                     <label
                         class="small dim"
                         halign={START}
-                        label={media.as((m) => `⊙ ${m.time}`)}
+                        label={media.as((m) => (m.time && m.time !== "Idle" ? `⊙ ${m.time}` : "⊙ Idle"))}
                     />
                 </box>
             </box>
