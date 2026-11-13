@@ -30,17 +30,17 @@ APP_TITLE="KDE Tuning Installer"
 
 declare -A STEP_LABELS=(
     [deps]="System Dependencies (pacman/yay)"
-    [x11]="Plasma X11 SDDM Session & Touchpad"
+    [x11]="Plasma SDDM Session (Wayland) & Touchpad"
     [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
     [fonts]="Fonts (Abel, custom TTF)"
-    [conky]="Conky Mimosa Widget"
+    [ags]="Mimosa AGS Widget (Wayland)"
     [zsh]="Zsh & Powerlevel10k Config"
     [plasma]="KDE Plasma Settings & Cursor Theme"
     [session]="Apply Session Changes (Plasma restart)"
 )
 
-ALL_STEPS=(deps x11 fstab repos fonts conky zsh plasma session)
+ALL_STEPS=(deps x11 fstab repos fonts ags zsh plasma session)
 
 # --- Helper: show a checklist dialog and return selected items ---
 select_modules() {

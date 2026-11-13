@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Mimosa AGS
+Comment=Launch Mimosa desktop widget (AGS)
+Exec=~/.config/mimosa-ags/start.sh
+Icon=utilities-system-monitor
+Terminal=false
+StartupNotify=false
+Categories=System;Monitor;
+X-KDE-autostart-after=panel
