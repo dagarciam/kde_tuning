@@ -714,6 +714,19 @@ install_external_repos() {
             log_ok "Orchis KDE theme already installed"
         fi
 
+        # Patch known upstream bug in Orchis-dark tooltip.svgz (accidental #fefefe white background)
+        local orchis_theme_dir="$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark"
+        if [[ -d "$orchis_theme_dir" ]]; then
+            for t_file in "$orchis_theme_dir/widgets/tooltip.svgz" \
+                          "$orchis_theme_dir/translucent/widgets/tooltip.svgz" \
+                          "$orchis_theme_dir/solid/widgets/tooltip.svgz"; do
+                if [[ -f "$t_file" ]] && gzip -dc "$t_file" 2>/dev/null | grep -q "color:#fefefe"; then
+                    gzip -dc "$t_file" | sed -e 's/#fefefe/#282828/g' -e 's/#333333/#dfdfdf/g' | gzip -cn9 > "$t_file.tmp"
+                    mv "$t_file.tmp" "$t_file"
+                fi
+            done
+        fi
+
         if [[ ! -d "$REAL_HOME/tela-circle-icon-theme" ]]; then
             log_info "Cloning Tela Circle icon theme..."
             git clone https://github.com/vinceliuice/tela-circle-icon-theme.git "$REAL_HOME/tela-circle-icon-theme"
@@ -860,6 +873,16 @@ restore_plasma_config() {
     local plasma_theme="breeze-dark"
     if [[ -d "/usr/share/plasma/desktoptheme/Orchis-dark" || -d "$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark" ]]; then
         plasma_theme="Orchis-dark"
+        # Patch known upstream bug in Orchis-dark tooltip.svgz (accidental #fefefe white background)
+        local orchis_theme_dir="$REAL_HOME/.local/share/plasma/desktoptheme/Orchis-dark"
+        for t_file in "$orchis_theme_dir/widgets/tooltip.svgz" \
+                      "$orchis_theme_dir/translucent/widgets/tooltip.svgz" \
+                      "$orchis_theme_dir/solid/widgets/tooltip.svgz"; do
+            if [[ -f "$t_file" ]] && gzip -dc "$t_file" 2>/dev/null | grep -q "color:#fefefe"; then
+                gzip -dc "$t_file" | sed -e 's/#fefefe/#282828/g' -e 's/#333333/#dfdfdf/g' | gzip -cn9 > "$t_file.tmp"
+                mv "$t_file.tmp" "$t_file"
+            fi
+        done
     elif [[ -d "/usr/share/plasma/desktoptheme/breath-dark" ]]; then
         plasma_theme="breath-dark"
     fi
