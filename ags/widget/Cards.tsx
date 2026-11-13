@@ -161,33 +161,52 @@ export function StorageCard() {
 
 export function MediaCard() {
     return (
-        <box class="card media" spacing={14}>
-            <box class="cover" valign={Gtk.Align.CENTER}>
-                <Gtk.Picture
-                    class="cover-img"
-                    contentFit={Gtk.ContentFit.COVER}
-                    widthRequest={64}
-                    heightRequest={64}
-                    $={(pic: Gtk.Picture) => {
-                        media.subscribe(() => {
-                            const c = media.peek().cover
-                            pic.set_filename(c || null)
-                        })
-                    }}
-                />
+        <box orientation={V} class="card media" spacing={8}>
+            <box spacing={12} valign={Gtk.Align.CENTER}>
+                <box class="cover" valign={Gtk.Align.CENTER}>
+                    <Gtk.Picture
+                        class="cover-img"
+                        contentFit={Gtk.ContentFit.COVER}
+                        widthRequest={58}
+                        heightRequest={58}
+                        $={(pic: Gtk.Picture) => {
+                            media.subscribe(() => {
+                                const c = media.peek().cover
+                                pic.set_filename(c || null)
+                            })
+                        }}
+                    />
+                </box>
+                <box orientation={V} valign={Gtk.Align.CENTER} hexpand spacing={2}>
+                    <label
+                        class="media-artist"
+                        halign={START}
+                        wrap={false}
+                        ellipsize={3}
+                        maxWidthChars={20}
+                        label={media.as((m) => m.artist)}
+                    />
+                    <label
+                        class="media-title"
+                        halign={START}
+                        wrap={false}
+                        ellipsize={3}
+                        maxWidthChars={20}
+                        label={media.as((m) => m.title)}
+                    />
+                    <label
+                        class="small dim"
+                        halign={START}
+                        label={media.as((m) => `⊙ ${m.time}`)}
+                    />
+                </box>
             </box>
-            <box orientation={V} valign={Gtk.Align.CENTER} hexpand>
-                <label class="media-label" halign={START} label="Media Player" />
-                <label
-                    class="media-title" halign={START} hexpand wrap={false}
-                    ellipsize={3} maxWidthChars={22}
-                    label={media.as((m) => m.title || "No music playing")}
-                />
-                <label
-                    class="small dim" halign={START}
-                    label={media.as((m) => (m.artist ? `${m.artist} · ${m.status}` : m.status || "Idle"))}
-                />
-            </box>
+            <levelbar
+                class="media-bar"
+                minValue={0}
+                maxValue={100}
+                value={media.as((m) => m.percent)}
+            />
         </box>
     )
 }

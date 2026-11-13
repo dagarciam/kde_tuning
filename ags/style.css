@@ -57,7 +57,42 @@ levelbar block.empty { background-color: transparent; border: none; }
 .free { color: @green; }
 
 /* ---- media ---- */
-.cover { border-radius: 32px; min-width: 64px; min-height: 64px; background-color: #0a84ff; }
-.media-label { color: @green; font-weight: bold; font-size: 16px; }
-.media-title { font-weight: bold; font-size: 17px; }
+.cover {
+    border-radius: 29px;
+    min-width: 58px;
+    min-height: 58px;
+    background-color: transparent;
+}
+.cover-img {
+    border-radius: 29px;
+}
+.media-artist {
+    color: @green;
+    font-weight: bold;
+    font-size: 15px;
+    font-family: "Abel", sans-serif;
+}
+.media-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 16px;
+    font-family: "Abel", sans-serif;
+}
+.media-bar trough {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.12);
+    border: none;
+    padding: 0;
+}
+.media-bar block.filled {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: @green;
+    border: none;
+}
+.media-bar block.empty {
+    background-color: transparent;
+    border: none;
+}
 

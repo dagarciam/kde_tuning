@@ -180,31 +180,53 @@ async function refreshDisks() {
     }
 }
 
-export type Media = { status: string; artist: string; title: string; cover: string }
-const [media, setMedia] = createState<Media>({ status: "", artist: "", title: "", cover: "" })
+export type Media = {
+    status: string
+    artist: string
+    title: string
+    time: string
+    cover: string
+    percent: number
+}
+const [media, setMedia] = createState<Media>({
+    status: "Stopped",
+    artist: "Media Player",
+    title: "No music playing",
+    time: "Idle",
+    cover: "",
+    percent: 0,
+})
 export { media }
 
-let lastArtUrl = ""
-let coverPath = ""
 async function refreshMedia() {
     try {
-        const out = (
-            await execAsync(["playerctl", "metadata", "--format", "{{status}}\t{{artist}}\t{{title}}\t{{mpris:artUrl}}"])
-        ).trim()
-        const [status = "", artist = "", title = "", art = ""] = out.split("\t")
-        if (art !== lastArtUrl) {
-            lastArtUrl = art
-            if (art.startsWith("file://")) coverPath = decodeURIComponent(art.slice(7))
-            else if (art.startsWith("http")) {
-                const dest = `${GLib.get_tmp_dir()}/mimosa-cover-${GLib.str_hash(art)}.img`
-                await execAsync(["curl", "-sL", "--max-time", "8", "-o", dest, art]).catch(() => "")
-                coverPath = dest
-            } else coverPath = ""
-        }
-        setMedia({ status, artist, title, cover: coverPath })
+        const script = `${SCRIPTS}/playerctl-info.sh`
+        const [status, artist, title, time, cover, percStr] = await Promise.all([
+            execAsync(["bash", script, "-s"]),
+            execAsync(["bash", script, "-a"]),
+            execAsync(["bash", script, "-t"]),
+            execAsync(["bash", script, "-p"]),
+            execAsync(["bash", script, "-c"]),
+            execAsync(["bash", script, "-perc"]),
+        ])
+        const percent = Math.max(0, Math.min(100, Number(percStr.trim()) || 0))
+        setMedia({
+            status: status.trim() || "Stopped",
+            artist: artist.trim() || "Media Player",
+            title: title.trim() || "No music playing",
+            time: time.trim() || "Idle",
+            cover: cover.trim(),
+            percent,
+        })
     } catch {
-        // playerctl exits non-zero when no player exists
-        setMedia({ status: "", artist: "", title: "", cover: "" })
+        setMedia({
+            status: "Stopped",
+            artist: "Media Player",
+            title: "No music playing",
+            time: "Idle",
+            cover: "",
+            percent: 0,
+        })
     }
 }
 
