@@ -4,16 +4,24 @@ set -Eeuo pipefail
 # Ensure graphical display is available
 export DISPLAY="${DISPLAY:-:0}"
 
-# Ensure secondary partitions (Documentos, Juegos) are mounted
+# Ensure secondary named partitions (Documentos, Juegos, Personal) are mounted if present
 if command -v udisksctl &> /dev/null; then
-    udisksctl mount -b /dev/sda1 &> /dev/null || true
-    udisksctl mount -b /dev/nvme1n1p3 &> /dev/null || true
+    for vol_label in Documentos Juegos Personal; do
+        if [[ -e "/dev/disk/by-label/$vol_label" ]] && ! findmnt -rn -S "LABEL=$vol_label" &>/dev/null; then
+            udisksctl mount -b "/dev/disk/by-label/$vol_label" &> /dev/null || true
+        fi
+    done
 fi
 
 # Close all active Conky instances and previous media daemon
 pkill -9 -x conky 2>/dev/null || true
 pkill -f "playerctl-info.sh --daemon" 2>/dev/null || true
 sleep 0.5s
+
+# Run hardware auto-detection (updates lib/hw_config.lua and active network interface)
+if [[ -x "$HOME/.config/conky/Mimosa/scripts/hw-detect.sh" ]]; then
+    "$HOME/.config/conky/Mimosa/scripts/hw-detect.sh" >/dev/null 2>&1 || true
+fi
 
 # Initialize cover art cache if missing
 if [[ ! -f /tmp/conky_cover.png && -f "$HOME/.config/conky/Mimosa/assets/default_cover.png" ]]; then

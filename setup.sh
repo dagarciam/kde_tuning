@@ -730,6 +730,7 @@ setup_conky() {
     if $DRY_RUN; then
         log_dry "cp -r $REPO_DIR/conky/Mimosa $REAL_HOME/.config/conky/"
         log_dry "chmod +x .config/conky/Mimosa/start.sh + scripts/*"
+        log_dry "Run hardware auto-detection (.config/conky/Mimosa/scripts/hw-detect.sh)"
         log_dry "cp conky-mimosa.desktop $REAL_HOME/.config/autostart/"
         log_dry "Set Exec path in $REAL_HOME/.config/autostart/conky-mimosa.desktop"
         log_dry "Would restart Conky if currently running"
@@ -737,6 +738,10 @@ setup_conky() {
         cp -r "$REPO_DIR"/conky/Mimosa "$REAL_HOME/.config/conky/"
         chmod +x "$REAL_HOME/.config/conky/Mimosa/start.sh"
         chmod +x "$REAL_HOME/.config/conky/Mimosa/scripts"/*
+        if [[ -x "$REAL_HOME/.config/conky/Mimosa/scripts/hw-detect.sh" ]]; then
+            log_info "Detecting hardware profile for Conky..."
+            "$REAL_HOME/.config/conky/Mimosa/scripts/hw-detect.sh" || log_warn "Hardware auto-detection reported a non-fatal warning"
+        fi
         mkdir -p "$REAL_HOME/.config/autostart"
         cp "$REPO_DIR"/conky/conky-mimosa.desktop "$REAL_HOME/.config/autostart/"
         sed -i -E "s|^Exec=.*|Exec=${REAL_HOME}/.config/conky/Mimosa/start.sh|" "$REAL_HOME/.config/autostart/conky-mimosa.desktop"
