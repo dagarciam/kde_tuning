@@ -522,8 +522,46 @@ install_dependencies() {
     log_ok "System dependencies done"
 }
 
+configure_wayland_touchpad() {
+    local kcminput="$REAL_HOME/.config/kcminputrc"
+    local kwrite_bin=""
+    if command -v kwriteconfig6 &>/dev/null; then
+        kwrite_bin="kwriteconfig6"
+    elif command -v kwriteconfig5 &>/dev/null; then
+        kwrite_bin="kwriteconfig5"
+    fi
+
+    local found=0
+    local dev_dir
+    for dev_dir in /sys/class/input/event*/device; do
+        [[ -d "$dev_dir" ]] || continue
+        local dev_name
+        dev_name=$(cat "$dev_dir/name" 2>/dev/null || true)
+        if [[ "${dev_name,,}" == *touchpad* ]]; then
+            local vendor=$(( 16#$(cat "$dev_dir/id/vendor" 2>/dev/null || echo 0) ))
+            local product=$(( 16#$(cat "$dev_dir/id/product" 2>/dev/null || echo 0) ))
+            (( found++ )) || true
+            if $DRY_RUN; then
+                log_dry "Wayland touchpad [$vendor][$product][$dev_name]: TapToClick=true, NaturalScroll=true in $kcminput"
+            elif [[ -n "$kwrite_bin" ]]; then
+                "$kwrite_bin" --file "$kcminput" --group "Libinput" --group "$vendor" --group "$product" --group "$dev_name" --key "TapToClick" "true"
+                "$kwrite_bin" --file "$kcminput" --group "Libinput" --group "$vendor" --group "$product" --group "$dev_name" --key "NaturalScroll" "true"
+                log_ok "Wayland touchpad configured: $dev_name (TapToClick + NaturalScroll)"
+            else
+                log_warn "kwriteconfig6/kwriteconfig5 not found; skipping Wayland touchpad config in $kcminput"
+            fi
+        fi
+    done
+
+    if (( found == 0 )); then
+        log_info "No touchpad device detected under /sys/class/input; skipping Wayland touchpad config."
+    elif ! $DRY_RUN && command -v qdbus6 &>/dev/null && [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || true
+    fi
+}
+
 configure_wayland_session() {
-    log_progress "$1" "$2" "Configuring Plasma Wayland session in SDDM"
+    log_progress "$1" "$2" "Configuring Plasma Wayland session & touchpad"
 
     local sddm_session="plasma"
     local sddm_session_file="/usr/share/wayland-sessions/plasma.desktop"
@@ -566,7 +604,9 @@ EOF
         run_as_root chown -R sddm:sddm /var/lib/sddm
     fi
 
-    log_ok "SDDM Plasma Wayland session configured"
+    configure_wayland_touchpad
+
+    log_ok "SDDM Plasma Wayland session & touchpad configured"
 }
 
 setup_fstab() {
