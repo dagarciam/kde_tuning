@@ -68,7 +68,7 @@ create_vinyl() {
     # 1. Crop and round album art into a 46x46 circular label
     if ! $im_cmd "$src_art" -resize 46x46^ -gravity center -extent 46x46 \
         \( -size 46x46 xc:none -fill white -draw "circle 23,23 23,1" \) \
-        -compose DstIn -composite "$temp_art" 2>/dev/null; then
+        -compose DstIn -composite -depth 8 png32:"$temp_art" 2>/dev/null; then
         rm -f "$temp_art" 2>/dev/null
         return 1
     fi
@@ -85,7 +85,7 @@ create_vinyl() {
         -fill "rgba(255,255,255,0.07)" -draw "path 'M 36,36 L 10,12 A 35,35 0 0,1 24,3 Z'" \
         -fill "rgba(255,255,255,0.07)" -draw "path 'M 36,36 L 62,60 A 35,35 0 0,1 48,69 Z'" \
         -fill "#0a0a0a" -stroke "#888888" -strokewidth 0.8 -draw "circle 36,36 36,33" \
-        -type TrueColorAlpha "$temp_master" 2>/dev/null
+        -type TrueColorAlpha -depth 8 png32:"$temp_master" 2>/dev/null
 
     local ret=$?
     if (( ret == 0 )) && [[ -s "$temp_master" ]]; then
@@ -257,32 +257,58 @@ refresh_data_atomic() {
         fi
 
         # Formatted duration and progress percentage (pure bash integer arithmetic, 0.000s)
-        local pos_raw="${p_pos//[^0-9]/}"
-        local len_raw="${p_length//[^0-9]/}"
-        [[ -z "$pos_raw" ]] && pos_raw=0
-        [[ -z "$len_raw" ]] && len_raw=0
+        # Fallback to direct position query if empty while playing
+        if [[ -z "$p_pos" || "$p_pos" == "0" ]] && [[ "$p_status" == "Playing" ]]; then
+            local live_pos
+            live_pos=$(playerctl $PLAYER_ARG position 2>/dev/null || echo "")
+            [[ -n "$live_pos" ]] && p_pos="$live_pos"
+        fi
 
-        if (( len_raw > 0 )); then
-            local pos_sec=$(( pos_raw / 1000000 ))
-            local len_sec=$(( len_raw / 1000000 ))
+        # Detect whether p_pos is in seconds (float or int < 1000000) or microseconds
+        local pos_sec=0
+        if [[ "$p_pos" =~ ^([0-9]+)\. ]]; then
+            pos_sec="${BASH_REMATCH[1]}"
+        else
+            local p_num="${p_pos//[^0-9]/}"
+            if [[ -n "$p_num" ]]; then
+                if (( p_num > 1000000 )); then
+                    pos_sec=$(( p_num / 1000000 ))
+                else
+                    pos_sec=$p_num
+                fi
+            fi
+        fi
+
+        # Detect whether p_length is in microseconds (standard MPRIS) or seconds
+        local len_sec=0
+        local l_num="${p_length//[^0-9]/}"
+        if [[ -n "$l_num" && "$l_num" -gt 0 ]]; then
+            if (( l_num > 1000000 )); then
+                len_sec=$(( l_num / 1000000 ))
+            else
+                len_sec=$l_num
+            fi
+        fi
+
+        if (( len_sec > 0 )); then
+            (( pos_sec > len_sec )) && pos_sec=$len_sec
             local pos_min=$(( pos_sec / 60 ))
             local pos_rem=$(( pos_sec % 60 ))
             local len_min=$(( len_sec / 60 ))
             local len_rem=$(( len_sec % 60 ))
 
             printf -v p_time "%d:%02d / %d:%02d" "$pos_min" "$pos_rem" "$len_min" "$len_rem"
-            local permil=$(( (pos_raw * 1000) / len_raw ))
+            local permil=$(( (pos_sec * 1000) / len_sec ))
             (( permil > 1000 )) && permil=1000
             (( permil < 0 )) && permil=0
             p_perc="$(( permil / 10 )).$(( permil % 10 ))"
-        elif (( pos_raw > 0 )); then
-            local pos_sec=$(( pos_raw / 1000000 ))
+        elif (( pos_sec > 0 )); then
             local pos_min=$(( pos_sec / 60 ))
             local pos_rem=$(( pos_sec % 60 ))
             printf -v p_time "%d:%02d" "$pos_min" "$pos_rem"
             p_perc=0
         else
-            p_time=""
+            p_time="0:00"
             p_perc=0
         fi
 

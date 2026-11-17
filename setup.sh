@@ -5,13 +5,15 @@ set -Eeuo pipefail
 # ==============================================================================
 # KDE Tuning - Master Setup Script
 # Author: dagarciam
-# Description: Automates the deployment of Conky, Zsh, and KDE configurations.
+# Description: Automates the deployment of the AGS desktop widget (or Conky with --conky), Zsh, and KDE Wayland configurations.
 # Usage:
 #   ./setup.sh [OPTIONS]
 #
 # Options:
+#   --conky            Install and configure Conky instead of the default AGS widget.
 #   --steps <list>     Comma-separated list of steps to run.
-#                      Steps: deps,x11,fstab,repos,fonts,conky,zsh,plasma,session
+#                      Steps: deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session
+#                      (default runs: deps,wayland,fstab,repos,fonts,ags,zsh,plasma,session)
 #   --dry-run          Simulate all changes without modifying files or system.
 #   --no-restart       Skip Plasma Shell restart at the end.
 #   --gui-mode         Emit structured log prefixes for GUI consumption.
@@ -38,10 +40,12 @@ NO_RESTART=false
 GUI_MODE=false
 ROLLBACK_MODE=false
 ROLLBACK_DIR=""
+USE_CONKY=false
 SELECTED_STEPS=()
 
 # All available steps in execution order
-ALL_STEPS=(deps x11 fstab repos fonts conky zsh plasma session)
+ALL_STEPS=(deps wayland fstab repos fonts ags conky zsh plasma session)
+DEFAULT_STEPS=(deps wayland fstab repos fonts ags zsh plasma session)
 
 # Log file (unique per run, based on timestamp)
 LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -123,6 +127,10 @@ show_help() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --conky|conky)
+                USE_CONKY=true
+                shift
+                ;;
             --steps)
                 [[ -z "${2:-}" ]] && error_exit "--steps requires a comma-separated list of steps"
                 IFS=',' read -r -a SELECTED_STEPS <<< "$2"
@@ -157,14 +165,21 @@ parse_args() {
         esac
     done
 
-    # Validate --steps values
+    # Validate --steps values (map deprecated 'x11' -> 'wayland')
+    local normalized_steps=()
     for step in "${SELECTED_STEPS[@]}"; do
+        if [[ "$step" == "x11" ]]; then
+            log_warn "Step 'x11' is deprecated; using 'wayland' instead."
+            step="wayland"
+        fi
         local valid=false
         for s in "${ALL_STEPS[@]}"; do
             [[ "$step" == "$s" ]] && valid=true && break
         done
         $valid || error_exit "Unknown step: '$step'. Valid steps: ${ALL_STEPS[*]}"
+        normalized_steps+=("$step")
     done
+    SELECTED_STEPS=("${normalized_steps[@]}")
 
     # Validate --rollback combinations
     if $ROLLBACK_MODE; then
@@ -173,9 +188,26 @@ parse_args() {
         done
     fi
 
-    # Default: run all steps
+    # Default: run DEFAULT_STEPS (ags by default, or conky if --conky was passed)
     if [[ ${#SELECTED_STEPS[@]} -eq 0 ]] && ! $ROLLBACK_MODE; then
-        SELECTED_STEPS=("${ALL_STEPS[@]}")
+        for s in "${DEFAULT_STEPS[@]}"; do
+            if $USE_CONKY && [[ "$s" == "ags" ]]; then
+                SELECTED_STEPS+=("conky")
+            else
+                SELECTED_STEPS+=("$s")
+            fi
+        done
+    elif $USE_CONKY; then
+        # If --conky was combined with --steps, replace 'ags' with 'conky'
+        local updated_steps=()
+        for s in "${SELECTED_STEPS[@]}"; do
+            if [[ "$s" == "ags" ]]; then
+                updated_steps+=("conky")
+            else
+                updated_steps+=("$s")
+            fi
+        done
+        SELECTED_STEPS=("${updated_steps[@]}")
     fi
 }
 
@@ -242,20 +274,6 @@ ensure_dir() {
     [ -d "$dir_path" ] || error_exit "Required directory not found: $dir_path"
 }
 
-detect_x11_package() {
-    local candidates=("plasma-x11-session" "plasma-workspace-x11")
-    local pkg
-
-    for pkg in "${candidates[@]}"; do
-        if pacman -Si "$pkg" &> /dev/null; then
-            echo "$pkg"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
 # Safe copy/mkdir that respects --dry-run
 dry_cp() {
     if $DRY_RUN; then
@@ -303,28 +321,28 @@ preflight_checks() {
     [ -d "$REAL_HOME" ] || error_exit "Home directory does not exist: $REAL_HOME"
 
     # Only check dirs/files needed for the selected steps
-    local check_all=false
-    local steps_needing_files=(deps x11 repos fonts conky zsh plasma)
-    for step in "${SELECTED_STEPS[@]}"; do
-        for needs in "${steps_needing_files[@]}"; do
-            [[ "$step" == "$needs" ]] && check_all=true && break 2
-        done
-    done
-
-    if $check_all || [[ ${#SELECTED_STEPS[@]} -eq ${#ALL_STEPS[@]} ]]; then
-        ensure_dir "$REPO_DIR/conky/Mimosa"
-        ensure_dir "$REPO_DIR/conky/Mimosa/fonts"
-        ensure_dir "$REPO_DIR/plasma"
-        ensure_dir "$REPO_DIR/zsh"
+    if step_is_selected "wayland"; then
         ensure_dir "$REPO_DIR/sddm"
-        ensure_dir "$REPO_DIR/x11"
-
         ensure_file "$REPO_DIR/sddm/kde_settings.conf"
-        ensure_file "$REPO_DIR/x11/30-touchpad.conf"
+    fi
+    if step_is_selected "conky"; then
+        ensure_dir "$REPO_DIR/conky/Mimosa"
         ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
+    fi
+    if step_is_selected "ags"; then
+        ensure_dir "$REPO_DIR/ags"
+        ensure_file "$REPO_DIR/ags/mimosa-ags.desktop"
+    fi
+    if step_is_selected "fonts"; then
+        ensure_file "$REPO_DIR/ags/fonts/Abel-Regular.ttf"
+    fi
+    if step_is_selected "zsh"; then
+        ensure_dir "$REPO_DIR/zsh"
         ensure_file "$REPO_DIR/zsh/.zshrc"
         ensure_file "$REPO_DIR/zsh/.p10k.zsh"
-        ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel-Regular.ttf"
+    fi
+    if step_is_selected "plasma"; then
+        ensure_dir "$REPO_DIR/plasma"
     fi
 }
 
@@ -448,23 +466,42 @@ install_dependencies() {
     ensure_cmd pacman
 
     PKGS=(
-        "conky" "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
+        "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools" "ttf-hack-nerd" "imagemagick"
-        "appmenu-gtk-module" "xorg-xinput"
+        "appmenu-gtk-module"
     )
 
-    local x11_pkg
-    if x11_pkg="$(detect_x11_package)"; then
-        PKGS+=("$x11_pkg")
-    else
-        log_warn "No known Plasma X11 package found in repos (checked: plasma-x11-session, plasma-workspace-x11)."
+    local want_ags=false
+    local want_conky=false
+    if step_is_selected "ags"; then want_ags=true; fi
+    if step_is_selected "conky"; then want_conky=true; fi
+    # If 'deps' was invoked standalone without widget steps, follow --conky flag
+    if ! $want_ags && ! $want_conky; then
+        if $USE_CONKY; then want_conky=true; else want_ags=true; fi
     fi
 
-    if command -v yay &> /dev/null; then
+    if $want_ags; then
+        PKGS+=("gjs" "gtk4-layer-shell")
+    fi
+    if $want_conky; then
+        PKGS+=("conky")
+    fi
+
+    local AUR_PKGS=()
+    if $want_ags; then
+        # AGS v3 is available from the AUR (needs an AUR helper).
+        AUR_PKGS+=("aylurs-gtk-shell")
+    fi
+
+    if (( ${#AUR_PKGS[@]} > 0 )) && command -v yay &> /dev/null; then
         INSTALL_CMD=(yay -S --needed --noconfirm)
+        PKGS+=("${AUR_PKGS[@]}")
     else
         INSTALL_CMD=(run_as_root pacman -S --needed --noconfirm)
+        if (( ${#AUR_PKGS[@]} > 0 )); then
+            log_warn "yay not found: skipping AUR packages (${AUR_PKGS[*]}). Install them manually to use the AGS widget."
+        fi
     fi
 
     if $DRY_RUN; then
@@ -476,18 +513,60 @@ install_dependencies() {
         ensure_cmd git
         ensure_cmd zsh
         ensure_cmd python3
-        ensure_cmd conky
+        if $want_ags; then
+            command -v ags &> /dev/null || log_warn "ags is not installed (AUR: aylurs-gtk-shell); the widget will not start."
+        fi
         ensure_cmd fc-cache
     fi
 
     log_ok "System dependencies done"
 }
 
-configure_x11_session() {
-    log_progress "$1" "$2" "Configuring Plasma X11 as default session & touchpad"
+configure_wayland_touchpad() {
+    local kcminput="$REAL_HOME/.config/kcminputrc"
+    local kwrite_bin=""
+    if command -v kwriteconfig6 &>/dev/null; then
+        kwrite_bin="kwriteconfig6"
+    elif command -v kwriteconfig5 &>/dev/null; then
+        kwrite_bin="kwriteconfig5"
+    fi
 
-    if [ ! -f /usr/share/xsessions/plasmax11.desktop ] && ! $DRY_RUN; then
-        log_warn "plasmax11.desktop not found. SDDM config may not work until next reboot."
+    local found=0
+    local dev_dir
+    for dev_dir in /sys/class/input/event*/device; do
+        [[ -d "$dev_dir" ]] || continue
+        local dev_name
+        dev_name=$(cat "$dev_dir/name" 2>/dev/null || true)
+        if [[ "${dev_name,,}" == *touchpad* ]]; then
+            local vendor=$(( 16#$(cat "$dev_dir/id/vendor" 2>/dev/null || echo 0) ))
+            local product=$(( 16#$(cat "$dev_dir/id/product" 2>/dev/null || echo 0) ))
+            (( found++ )) || true
+            if $DRY_RUN; then
+                log_dry "Wayland touchpad [$vendor][$product][$dev_name]: TapToClick=true, NaturalScroll=true in $kcminput"
+            elif [[ -n "$kwrite_bin" ]]; then
+                "$kwrite_bin" --file "$kcminput" --group "Libinput" --group "$vendor" --group "$product" --group "$dev_name" --key "TapToClick" "true"
+                "$kwrite_bin" --file "$kcminput" --group "Libinput" --group "$vendor" --group "$product" --group "$dev_name" --key "NaturalScroll" "true"
+                log_ok "Wayland touchpad configured: $dev_name (TapToClick + NaturalScroll)"
+            else
+                log_warn "kwriteconfig6/kwriteconfig5 not found; skipping Wayland touchpad config in $kcminput"
+            fi
+        fi
+    done
+
+    if (( found == 0 )); then
+        log_info "No touchpad device detected under /sys/class/input; skipping Wayland touchpad config."
+    elif ! $DRY_RUN && command -v qdbus6 &>/dev/null && [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || true
+    fi
+}
+
+configure_wayland_session() {
+    log_progress "$1" "$2" "Configuring Plasma Wayland session & touchpad"
+
+    local sddm_session="plasma"
+    local sddm_session_file="/usr/share/wayland-sessions/plasma.desktop"
+    if [ ! -f "$sddm_session_file" ] && ! $DRY_RUN; then
+        log_warn "Plasma Wayland session file not found ($sddm_session_file). SDDM config may not work until next reboot."
     fi
 
     local conf_dir="/etc/sddm.conf.d"
@@ -499,64 +578,35 @@ configure_x11_session() {
         return 1
     fi
 
-    local xorg_dir="/etc/X11/xorg.conf.d"
-    local touchpad_conf="$xorg_dir/30-touchpad.conf"
-    local template_touchpad="$REPO_DIR/x11/30-touchpad.conf"
-
-    if [ ! -f "$template_touchpad" ]; then
-        echo -e "${RED}Missing touchpad template: $template_touchpad${NC}" >&2
-        return 1
-    fi
-
     if $DRY_RUN; then
         log_dry "mkdir -p $conf_dir"
         log_dry "cp $template_conf $sddm_conf"
         log_dry "sed -i 's/User=.*/User=$REAL_USER/' $sddm_conf"
-        log_dry "write /var/lib/sddm/state.conf"
-        log_dry "write /var/lib/sddm/.config/state.conf"
+        log_dry "set Session=$sddm_session in $sddm_conf"
+        log_dry "write /var/lib/sddm/state.conf (Wayland)"
+        log_dry "write /var/lib/sddm/.config/state.conf (Wayland)"
         log_dry "chown -R sddm:sddm /var/lib/sddm"
-        log_dry "mkdir -p $xorg_dir"
-        log_dry "cp $template_touchpad $touchpad_conf"
-        log_dry "Would apply X11 natural scrolling live via xinput (if DISPLAY active)"
     else
-        log_info "Copying SDDM template to $sddm_conf..."
+        log_info "Copying SDDM Wayland template to $sddm_conf..."
         run_as_root mkdir -p "$conf_dir"
         run_as_root cp "$template_conf" "$sddm_conf"
         run_as_root sed -i -E "s|^User=.*$|User=$REAL_USER|" "$sddm_conf"
+        run_as_root sed -i -E "s|^Session=.*$|Session=$sddm_session|" "$sddm_conf"
 
         for state_conf in /var/lib/sddm/state.conf /var/lib/sddm/.config/state.conf; do
             run_as_root mkdir -p "$(dirname "$state_conf")"
             run_as_root tee "$state_conf" > /dev/null <<EOF
 [Last]
-Session=/usr/share/xsessions/plasmax11.desktop
+Session=${sddm_session_file}
 User=$REAL_USER
 EOF
         done
         run_as_root chown -R sddm:sddm /var/lib/sddm
-
-        log_info "Deploying X11 touchpad configuration to $touchpad_conf..."
-        run_as_root mkdir -p "$xorg_dir"
-        run_as_root cp "$template_touchpad" "$touchpad_conf"
-
-        if [[ -n "${DISPLAY:-}" ]] && command -v xinput &>/dev/null; then
-            local run_as_user=()
-            if [[ "$EUID" -eq 0 && -n "${SUDO_USER:-}" ]]; then
-                run_as_user=(sudo -u "$REAL_USER" DISPLAY="$DISPLAY")
-                [[ -n "${XAUTHORITY:-}" ]] && run_as_user+=(XAUTHORITY="$XAUTHORITY")
-            fi
-            while read -r dev_id; do
-                if [[ -n "$dev_id" ]]; then
-                    "${run_as_user[@]}" xinput set-prop "$dev_id" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
-                fi
-            done < <("${run_as_user[@]}" xinput list --id-only 2>/dev/null | while read -r id; do
-                if "${run_as_user[@]}" xinput list-props "$id" 2>/dev/null | grep -q "libinput Natural Scrolling Enabled"; then
-                    echo "$id"
-                fi
-            done)
-        fi
     fi
 
-    log_ok "SDDM and X11 touchpad configured"
+    configure_wayland_touchpad
+
+    log_ok "SDDM Plasma Wayland session & touchpad configured"
 }
 
 setup_fstab() {
@@ -752,17 +802,17 @@ install_external_repos() {
 install_fonts() {
     log_progress "$1" "$2" "Installing fonts"
     dry_mkdir "$REAL_HOME/.local/share/fonts"
-    ensure_file "$REPO_DIR/conky/Mimosa/fonts/Abel-Regular.ttf"
+    ensure_file "$REPO_DIR/ags/fonts/Abel-Regular.ttf"
 
     if $DRY_RUN; then
         log_dry "cp *.ttf $REAL_HOME/.local/share/fonts/"
         log_dry "fc-cache -fv"
     else
-        if ! compgen -G "$REPO_DIR/conky/Mimosa/fonts/*.ttf" > /dev/null; then
-            error_exit "No .ttf files found in $REPO_DIR/conky/Mimosa/fonts"
+        if ! compgen -G "$REPO_DIR/ags/fonts/*.ttf" > /dev/null; then
+            error_exit "No .ttf files found in $REPO_DIR/ags/fonts"
         fi
 
-        cp "$REPO_DIR"/conky/Mimosa/fonts/*.ttf "$REAL_HOME/.local/share/fonts/"
+        cp "$REPO_DIR"/ags/fonts/*.ttf "$REAL_HOME/.local/share/fonts/"
         fc-cache -fv > /dev/null
     fi
 
@@ -770,7 +820,7 @@ install_fonts() {
 }
 
 setup_conky() {
-    log_progress "$1" "$2" "Setting up Conky Mimosa"
+    log_progress "$1" "$2" "Setting up Conky Mimosa (Right Side)"
     ensure_dir "$REPO_DIR/conky/Mimosa"
     ensure_file "$REPO_DIR/conky/conky-mimosa.desktop"
 
@@ -803,22 +853,72 @@ setup_conky() {
             cp "$REAL_HOME/.config/conky/Mimosa/assets/default_cover.png" /tmp/conky_cover.png
         fi
 
+        # If AGS was not also explicitly selected, remove its autostart and stop it
+        if ! step_is_selected "ags"; then
+            rm -f "$REAL_HOME/.config/autostart/mimosa-ags.desktop"
+            ags quit -i mimosa &> /dev/null || true
+            pkill -f "ags run .*/mimosa-ags/app.tsx" 2>/dev/null || true
+        fi
+
         # Stop any stale instances
         pkill -9 -x conky 2>/dev/null || true
         sleep 1
 
         # Launch Conky if an active display is present
-        if [[ -n "$DISPLAY" ]]; then
+        if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
             log_info "Starting Conky Mimosa..."
             if [[ -x "$REAL_HOME/.config/conky/Mimosa/start.sh" ]]; then
                 "$REAL_HOME/.config/conky/Mimosa/start.sh"
             fi
         else
-            log_info "No DISPLAY detected; Conky will autostart upon graphical login."
+            log_info "No display detected; Conky will autostart upon graphical login."
         fi
     fi
 
     log_ok "Conky setup complete"
+}
+
+setup_ags() {
+    log_progress "$1" "$2" "Setting up Mimosa AGS widget (Left Side)"
+    ensure_dir "$REPO_DIR/ags"
+    ensure_file "$REPO_DIR/ags/mimosa-ags.desktop"
+    ensure_file "$REPO_DIR/ags/app.tsx"
+
+    local dest="$REAL_HOME/.config/mimosa-ags"
+
+    if $DRY_RUN; then
+        log_dry "mkdir -p $dest && cp -rT $REPO_DIR/ags $dest"
+        log_dry "chmod +x $dest/start.sh + scripts/*"
+        log_dry "cp mimosa-ags.desktop $REAL_HOME/.config/autostart/"
+        log_dry "Set Exec path in $REAL_HOME/.config/autostart/mimosa-ags.desktop"
+        log_dry "Would (re)start the widget if running inside a Wayland session"
+        log_ok "AGS widget setup (dry-run)"
+        return 0
+    fi
+
+    mkdir -p "$dest" "$REAL_HOME/.config/autostart"
+    cp -rT "$REPO_DIR/ags" "$dest"
+    chmod +x "$dest/start.sh" "$dest"/scripts/*
+
+    cp "$REPO_DIR/ags/mimosa-ags.desktop" "$REAL_HOME/.config/autostart/"
+    sed -i -E "s|^Exec=.*|Exec=${dest}/start.sh|" "$REAL_HOME/.config/autostart/mimosa-ags.desktop"
+
+    # If Conky was not also explicitly selected, remove its autostart and stop it
+    if ! step_is_selected "conky"; then
+        rm -f "$REAL_HOME/.config/autostart/conky-mimosa.desktop"
+        pkill -9 -x conky 2>/dev/null || true
+    fi
+
+    if ! command -v ags &> /dev/null; then
+        log_warn "ags not found. Install aylurs-gtk-shell from the AUR and re-run."
+    elif [[ "${XDG_SESSION_TYPE:-}" != "wayland" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+        log_info "Not in a Wayland session; the widget will start at your next Plasma (Wayland) login."
+    else
+        log_info "Starting Mimosa AGS widget..."
+        "$dest/start.sh" || log_warn "start.sh reported a non-fatal warning"
+    fi
+
+    log_ok "AGS widget setup complete"
 }
 
 setup_zsh() {
@@ -964,19 +1064,10 @@ apply_session_changes() {
     fi
 
     if [ "$current_session" = "wayland" ]; then
-        log_warn "You are currently on Wayland. Reboot to use Plasma X11."
-        log_info "SDDM is already configured for Plasma X11."
+        log_info "You are on Wayland: no Plasma Shell restart needed."
+        log_info "SDDM is configured to use the Plasma Wayland session."
     else
-        log_info "You are on X11. Restarting Plasma Shell..."
-        pkill plasmashell 2>/dev/null || true
-        sleep 1
-        if command -v kstart6 &> /dev/null; then
-            kstart6 plasmashell > /dev/null 2>&1 || true
-        elif command -v kstart5 &> /dev/null; then
-            kstart5 plasmashell > /dev/null 2>&1 || true
-        else
-            nohup plasmashell > /dev/null 2>&1 &
-        fi
+        log_info "Current session is '$current_session'. Log out and log back in to enter the configured Plasma Wayland session."
     fi
 
     log_ok "Session finalized"
@@ -1066,7 +1157,7 @@ fi
 preflight_checks
 
 # Only request sudo if a step that needs it is selected
-if step_is_selected "deps" || step_is_selected "x11" || step_is_selected "fstab"; then
+if step_is_selected "deps" || step_is_selected "wayland" || step_is_selected "fstab"; then
     if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null && ! $DRY_RUN; then
         if sudo -n true 2>/dev/null; then
             keep_sudo_alive
@@ -1086,15 +1177,16 @@ for step in "${ALL_STEPS[@]}"; do
     if step_is_selected "$step"; then
         (( CURRENT_STEP++ )) || true
         case "$step" in
-            deps)    run_step "Install dependencies"         install_dependencies    "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            x11)     run_step "Configure X11 session"        configure_x11_session   "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            fstab)   run_step "Configure fstab automounts"   setup_fstab             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            repos)   run_step "Install external repos"       install_external_repos  "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            fonts)   run_step "Install fonts"                install_fonts           "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            conky)   run_step "Setup Conky"                  setup_conky             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            zsh)     run_step "Setup Zsh"                    setup_zsh               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            plasma)  run_step "Restore Plasma config"        restore_plasma_config   "$CURRENT_STEP" "$TOTAL_STEPS" ;;
-            session) run_step "Apply session changes"        apply_session_changes   "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            deps)    run_step "Install dependencies"           install_dependencies      "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            wayland) run_step "Configure Wayland session"      configure_wayland_session "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            fstab)   run_step "Configure fstab automounts"     setup_fstab               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            repos)   run_step "Install external repos"         install_external_repos    "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            fonts)   run_step "Install fonts"                  install_fonts             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            ags)     run_step "Setup AGS widget (Default)"     setup_ags                 "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            conky)   run_step "Setup Conky widget (Optional)"  setup_conky               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            zsh)     run_step "Setup Zsh"                      setup_zsh                 "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            plasma)  run_step "Restore Plasma config"          restore_plasma_config     "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            session) run_step "Apply session changes"          apply_session_changes     "$CURRENT_STEP" "$TOTAL_STEPS" ;;
         esac
     fi
 done

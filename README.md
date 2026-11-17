@@ -36,7 +36,7 @@ chmod +x setup.sh
 
 ### Ejecución modular (pasos específicos)
 
-Los pasos disponibles son: `deps`, `x11`, `repos`, `fonts`, `conky`, `zsh`, `plasma`, `session`.
+Los pasos disponibles son: `deps`, `x11`, `repos`, `fonts`, `ags`, `zsh`, `plasma`, `session`.
 
 ```bash
 # Solo instalar fuentes y configuración de Zsh
@@ -92,7 +92,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 ```
 ./setup.sh [OPCIONES]
 
-  --steps <list>     Pasos separados por coma: deps,x11,fstab,repos,fonts,conky,zsh,plasma,session
+  --steps <list>     Pasos separados por coma: deps,x11,fstab,repos,fonts,ags,zsh,plasma,session
   --dry-run          Simular sin cambios reales
   --no-restart       Omitir reinicio de Plasma Shell al final
   --gui-mode         Salida estructurada para consumo por GUI (prefijos [STEP/PROGRESS/FAIL])
@@ -106,7 +106,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 
 ### 0. Gestión de Dependencias Automatizada
 El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; de lo contrario, utiliza **pacman**. Instala automáticamente:
-- **Core:** `conky`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
+- **Core:** `ags` (AUR: `aylurs-gtk-shell` + `libastal-meta`), `gtk4-layer-shell`, `gjs`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
 - **Productividad:** `fzf`, `zoxide`, `fastfetch`, `lazygit`, `git-delta`.
 - **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6), `appmenu-gtk-module` (Soporte de Menú Global para apps GTK/Electron).
 - **Hardware:** `lm_sensors` (Temperaturas), `wireless_tools` (SSID WiFi).
@@ -117,17 +117,14 @@ El módulo `fstab` detecta automáticamente las particiones de almacenamiento se
 - **Arranque seguro con `nofail`:** Evita bloqueos en el arranque si un disco no responde (`defaults,nofail,x-systemd.device-timeout=10s`).
 - **Permisos de usuario completos:** Asigna `uid` y `gid` del usuario de escritorio para evitar solicitudes de contraseña de root en cada inicio de sesión y permitir acceso inmediato a Steam, juegos y documentos.
 - **Respaldo preventivo:** Genera una copia de respaldo fechada (`/etc/fstab.bak.<timestamp>`) antes de cualquier modificación.
-- **Sinergia con Conky:** Conecta directamente con las rutas preferidas del widget `Mimosa` (`disk_bar.lua`).
+- **Sinergia con el widget:** El widget AGS lista automáticamente los volúmenes montados (hasta 4).
 
-### 1. Conky (Tema Mimosa - Tuneado)
-- **Ubicación:** `conky/Mimosa`
-- **Mejoras aplicadas:**
-  - Soporte para **Dual GPU**: Monitoreo de la GPU dedicada **RX 9070** (`card1`).
-  - Icono de **Chip (GPU)** personalizado que cubre el icono de batería original.
-  - Sensor de temperatura de CPU vinculado a `hwmon4`.
-  - Transparencia ARGB real habilitada (sin fondo negro en KDE).
-  - Clima configurado para **Tlalpan, México**.
-  - **Validación de Sesión:** El script `start.sh` verifica que estés en X11 antes de iniciar.
+### 1. Widget Mimosa (AGS v3 / Astal, Wayland)
+- **Ubicación:** `ags/` (se instala en `~/.config/mimosa-ags`).
+- **Reemplaza a Conky** para no depender de X11: se ancla al fondo con `wlr-layer-shell` (KWin, Plasma 6).
+- **Autodetección de hardware** (`ags/scripts/hw-detect.sh` emite JSON): modelo y topología de CPU (híbrida/SMT/X3D), batería (laptop vs desktop), interfaz de red activa, GPU/VRAM, sensores térmicos.
+- **Tarjetas:** reloj, clima, red (SSID + gráficas), anillos (RAM/BAT-VRAM-SWAP/GPU/TEMP), CPU por núcleo físico, almacenamiento (1–4 volúmenes) y reproductor (MPRIS vía `playerctl`).
+- **Ejecución manual:** `ags run ags/app.tsx` dentro de una sesión Wayland.
 
 ### 2. Terminal Maestra (Zsh & Powerlevel10k)
 - **Plugins Visuales (p10k segments):**
@@ -183,7 +180,7 @@ El cursor se configura en todas las capas para garantizar consistencia total:
 ---
 
 ## 🛠️ Notas del Desarrollador
-- **Importante:** La transparencia de Conky y los anillos de Lua requieren una sesión de **X11**.
+- **Importante:** El widget AGS usa `wlr-layer-shell` y requiere una sesión **Plasma (Wayland)**; en X11 `start.sh` no lo inicia.
 - Los alias de sistema (`update`, `install`, `clean`) usan **pamac** para incluir soporte AUR por defecto.
 - Powerlevel10k se instala con `--depth=1` (último commit del repositorio oficial).
 
