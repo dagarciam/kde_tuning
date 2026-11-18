@@ -227,6 +227,41 @@ fi
 
 REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+DISTRO_ID="unknown"
+DISTRO_FAMILY="unknown"
+PKG_MANAGER="unknown"
+
+detect_distro() {
+    if [[ -r /etc/os-release ]]; then
+        local os_id="" os_like=""
+        os_id="$(grep -E '^ID=' /etc/os-release | head -1 | cut -d= -f2- | tr -d '"' | tr '[:upper:]' '[:lower:]')"
+        os_like="$(grep -E '^ID_LIKE=' /etc/os-release | head -1 | cut -d= -f2- | tr -d '"' | tr '[:upper:]' '[:lower:]')"
+        DISTRO_ID="${os_id:-unknown}"
+        local combined=" ${os_id} ${os_like} "
+        if [[ "$combined" == *" arch "* || "$combined" == *" manjaro "* || "$combined" == *" endeavouros "* || "$combined" == *" cachyos "* || "$combined" == *" garuda "* ]]; then
+            DISTRO_FAMILY="arch"
+            PKG_MANAGER="pacman"
+        elif [[ "$combined" == *" fedora "* || "$combined" == *" rhel "* || "$combined" == *" centos "* ]]; then
+            DISTRO_FAMILY="fedora"
+            PKG_MANAGER="dnf"
+        elif [[ "$combined" == *" debian "* || "$combined" == *" ubuntu "* || "$combined" == *" neon "* ]]; then
+            DISTRO_FAMILY="debian"
+            PKG_MANAGER="apt"
+        elif [[ "$combined" == *" opensuse "* || "$combined" == *" suse "* ]]; then
+            DISTRO_FAMILY="suse"
+            PKG_MANAGER="zypper"
+        fi
+    fi
+
+    if [[ "$PKG_MANAGER" == "unknown" ]]; then
+        if command -v pacman &>/dev/null; then DISTRO_FAMILY="arch"; PKG_MANAGER="pacman"
+        elif command -v dnf &>/dev/null; then DISTRO_FAMILY="fedora"; PKG_MANAGER="dnf"
+        elif command -v apt-get &>/dev/null; then DISTRO_FAMILY="debian"; PKG_MANAGER="apt"
+        elif command -v zypper &>/dev/null; then DISTRO_FAMILY="suse"; PKG_MANAGER="zypper"
+        fi
+    fi
+}
+
 # --- Helper Functions ---
 
 keep_sudo_alive() {
@@ -460,17 +495,211 @@ clone_repo_if_missing() {
 
 # --- Main Tasks ---
 
-install_dependencies() {
-    log_progress "$1" "$2" "Installing system dependencies"
-
+install_deps_arch() {
+    local want_ags="$1"
+    local want_conky="$2"
     ensure_cmd pacman
 
-    PKGS=(
+    local PKGS=(
         "playerctl" "jq" "curl" "git" "zsh" "python" "fzf" "zoxide"
         "fastfetch" "lazygit" "git-delta" "lm_sensors"
         "wireless_tools" "ttf-hack-nerd" "imagemagick"
-        "appmenu-gtk-module"
+        "appmenu-gtk-module" "pacman-contrib"
     )
+    $want_ags && PKGS+=("gjs" "gtk4-layer-shell")
+    $want_conky && PKGS+=("conky")
+
+    local AUR_PKGS=()
+    $want_ags && AUR_PKGS+=("aylurs-gtk-shell")
+
+    local aur_helper=""
+    if command -v yay &> /dev/null; then
+        aur_helper="yay"
+    elif command -v paru &> /dev/null; then
+        aur_helper="paru"
+    fi
+
+    local INSTALL_CMD=()
+    if (( ${#AUR_PKGS[@]} > 0 )) && [[ -n "$aur_helper" ]]; then
+        if [ "$EUID" -eq 0 ]; then
+            INSTALL_CMD=(sudo -u "$REAL_USER" "$aur_helper" -S --needed --noconfirm)
+        else
+            INSTALL_CMD=("$aur_helper" -S --needed --noconfirm)
+        fi
+        PKGS+=("${AUR_PKGS[@]}")
+    else
+        INSTALL_CMD=(run_as_root pacman -S --needed --noconfirm)
+        if (( ${#AUR_PKGS[@]} > 0 )); then
+            log_warn "No AUR helper (yay/paru) found: skipping AUR packages (${AUR_PKGS[*]}). Install them manually to use the AGS widget."
+        fi
+    fi
+
+    if $DRY_RUN; then
+        log_dry "Would install packages (pacman): ${PKGS[*]}"
+    else
+        log_info "Using command: ${INSTALL_CMD[*]}"
+        "${INSTALL_CMD[@]}" "${PKGS[@]}"
+    fi
+}
+
+install_deps_fedora() {
+    local want_ags="$1"
+    local want_conky="$2"
+    ensure_cmd dnf
+
+    local PKGS=(
+        "playerctl" "jq" "curl" "git" "zsh" "python3" "fzf" "zoxide"
+        "fastfetch" "git-delta" "lm_sensors" "wireless-tools"
+        "ImageMagick" "appmenu-gtk-module" "unzip"
+    )
+    if dnf list --available lazygit &>/dev/null 2>&1; then
+        PKGS+=("lazygit")
+    else
+        log_warn "lazygit not found in enabled dnf repos (enable COPR atim/lazygit or install manually)."
+    fi
+    $want_ags && PKGS+=("gjs" "gtk4-layer-shell")
+    $want_conky && PKGS+=("conky")
+
+    if $DRY_RUN; then
+        log_dry "Would install packages (dnf): ${PKGS[*]}"
+    else
+        log_info "Using command: dnf install -y"
+        run_as_root dnf install -y "${PKGS[@]}"
+    fi
+}
+
+install_debian_github_tool() {
+    local tool="$1"
+    command -v "$tool" &>/dev/null && return 0
+
+    local arch_deb="amd64"
+    local arch_tar="x86_64"
+    case "$(uname -m)" in
+        aarch64|arm64) arch_deb="arm64"; arch_tar="arm64" ;;
+    esac
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    case "$tool" in
+        fastfetch)
+            local url="https://github.com/fastfetch-cli/fastfetch/releases/latest/download/fastfetch-linux-${arch_deb}.deb"
+            if curl -fsSL "$url" -o "$tmp_dir/fastfetch.deb"; then
+                run_as_root dpkg -i "$tmp_dir/fastfetch.deb" || run_as_root apt-get install -f -y
+            else
+                log_warn "Failed to download fastfetch .deb from GitHub."
+            fi
+            ;;
+        git-delta)
+            local tag
+            tag="$(curl -fsSL "https://api.github.com/repos/dandavison/delta/releases/latest" | jq -r '.tag_name // empty' 2>/dev/null || true)"
+            if [[ -n "$tag" ]]; then
+                local url="https://github.com/dandavison/delta/releases/download/${tag}/git-delta_${tag}_${arch_deb}.deb"
+                if curl -fsSL "$url" -o "$tmp_dir/delta.deb"; then
+                    run_as_root dpkg -i "$tmp_dir/delta.deb" || run_as_root apt-get install -f -y
+                else
+                    log_warn "Failed to download git-delta .deb from GitHub."
+                fi
+            fi
+            ;;
+        lazygit)
+            local tag
+            tag="$(curl -fsSL "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | jq -r '.tag_name // empty' 2>/dev/null || true)"
+            local ver="${tag#v}"
+            if [[ -n "$ver" ]]; then
+                local url="https://github.com/jesseduffield/lazygit/releases/download/${tag}/lazygit_${ver}_Linux_${arch_tar}.tar.gz"
+                if curl -fsSL "$url" -o "$tmp_dir/lazygit.tar.gz" && tar -xzf "$tmp_dir/lazygit.tar.gz" -C "$tmp_dir" lazygit; then
+                    run_as_root install -m 755 "$tmp_dir/lazygit" /usr/local/bin/lazygit
+                else
+                    log_warn "Failed to download lazygit from GitHub."
+                fi
+            fi
+            ;;
+        zoxide)
+            if curl -fsSL "https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh" | BIN_DIR="$REAL_HOME/.local/bin" sh; then
+                log_ok "Installed zoxide to $REAL_HOME/.local/bin"
+            else
+                log_warn "Failed to install zoxide."
+            fi
+            ;;
+    esac
+    rm -rf "$tmp_dir"
+}
+
+install_deps_debian() {
+    local want_ags="$1"
+    local want_conky="$2"
+    ensure_cmd apt-get
+
+    local PKGS=(
+        "playerctl" "jq" "curl" "git" "zsh" "python3" "fzf"
+        "lm-sensors" "wireless-tools" "imagemagick"
+        "appmenu-gtk3-module" "unzip"
+    )
+    local optional_pkgs=("zoxide" "fastfetch" "git-delta" "lazygit")
+    $want_ags && PKGS+=("gjs") && optional_pkgs+=("libgtk4-layer-shell0")
+    $want_conky && PKGS+=("conky-all")
+
+    if step_is_selected "wayland" && ! compgen -G "/usr/share/wayland-sessions/plasma*.desktop" > /dev/null; then
+        optional_pkgs+=("plasma-workspace-wayland")
+    fi
+
+    if $DRY_RUN; then
+        if [[ "$DISTRO_ID" == "ubuntu" ]] && command -v add-apt-repository &>/dev/null; then
+            log_dry "Would ensure Ubuntu 'universe' repository is enabled"
+        fi
+        log_dry "Would run: apt-get update"
+        log_dry "Would install packages (apt-get): ${PKGS[*]} (+ available from: ${optional_pkgs[*]})"
+        log_dry "Would install missing CLI tools (fastfetch/git-delta/lazygit/zoxide) via GitHub releases if absent from apt"
+    else
+        if [[ "$DISTRO_ID" == "ubuntu" ]] && command -v add-apt-repository &>/dev/null; then
+            run_as_root add-apt-repository -y universe 2>/dev/null || true
+        fi
+        run_as_root apt-get update
+
+        local missing_cli=()
+        for opt_pkg in "${optional_pkgs[@]}"; do
+            if apt-cache show "$opt_pkg" &>/dev/null; then
+                PKGS+=("$opt_pkg")
+            elif [[ "$opt_pkg" == "fastfetch" || "$opt_pkg" == "git-delta" || "$opt_pkg" == "lazygit" || "$opt_pkg" == "zoxide" ]]; then
+                missing_cli+=("$opt_pkg")
+            else
+                log_warn "Package '$opt_pkg' not available in apt repos; skipping."
+            fi
+        done
+
+        log_info "Using command: apt-get install -y"
+        run_as_root apt-get install -y "${PKGS[@]}"
+
+        for tool in "${missing_cli[@]}"; do
+            log_info "Installing '$tool' from GitHub releases (not in apt)..."
+            install_debian_github_tool "$tool"
+        done
+    fi
+}
+
+install_deps_suse() {
+    local want_ags="$1"
+    local want_conky="$2"
+    ensure_cmd zypper
+
+    local PKGS=(
+        "playerctl" "jq" "curl" "git" "zsh" "python3" "fzf" "zoxide"
+        "fastfetch" "lazygit" "git-delta" "sensors" "wireless-tools"
+        "ImageMagick" "appmenu-gtk-module" "unzip"
+    )
+    $want_ags && PKGS+=("gjs" "gtk4-layer-shell")
+    $want_conky && PKGS+=("conky")
+
+    if $DRY_RUN; then
+        log_dry "Would install packages (zypper): ${PKGS[*]}"
+    else
+        log_info "Using command: zypper --non-interactive install --no-recommends"
+        run_as_root zypper --non-interactive install --no-recommends "${PKGS[@]}"
+    fi
+}
+
+install_dependencies() {
+    log_progress "$1" "$2" "Installing system dependencies ($PKG_MANAGER)"
 
     local want_ags=false
     local want_conky=false
@@ -481,40 +710,24 @@ install_dependencies() {
         if $USE_CONKY; then want_conky=true; else want_ags=true; fi
     fi
 
-    if $want_ags; then
-        PKGS+=("gjs" "gtk4-layer-shell")
-    fi
-    if $want_conky; then
-        PKGS+=("conky")
-    fi
+    case "$DISTRO_FAMILY" in
+        arch)   install_deps_arch "$want_ags" "$want_conky" ;;
+        fedora) install_deps_fedora "$want_ags" "$want_conky" ;;
+        debian) install_deps_debian "$want_ags" "$want_conky" ;;
+        suse)   install_deps_suse "$want_ags" "$want_conky" ;;
+        *)      error_exit "Unsupported distribution '$DISTRO_ID' (package manager: $PKG_MANAGER). Supported: Arch, Fedora, Debian/Ubuntu, openSUSE." ;;
+    esac
 
-    local AUR_PKGS=()
-    if $want_ags; then
-        # AGS v3 is available from the AUR (needs an AUR helper).
-        AUR_PKGS+=("aylurs-gtk-shell")
-    fi
-
-    if (( ${#AUR_PKGS[@]} > 0 )) && command -v yay &> /dev/null; then
-        INSTALL_CMD=(yay -S --needed --noconfirm)
-        PKGS+=("${AUR_PKGS[@]}")
-    else
-        INSTALL_CMD=(run_as_root pacman -S --needed --noconfirm)
-        if (( ${#AUR_PKGS[@]} > 0 )); then
-            log_warn "yay not found: skipping AUR packages (${AUR_PKGS[*]}). Install them manually to use the AGS widget."
-        fi
-    fi
-
-    if $DRY_RUN; then
-        log_dry "Would install packages: ${PKGS[*]}"
-    else
-        log_info "Using command: ${INSTALL_CMD[*]}"
-        "${INSTALL_CMD[@]}" "${PKGS[@]}"
-
+    if ! $DRY_RUN; then
         ensure_cmd git
         ensure_cmd zsh
         ensure_cmd python3
-        if $want_ags; then
-            command -v ags &> /dev/null || log_warn "ags is not installed (AUR: aylurs-gtk-shell); the widget will not start."
+        if $want_ags && ! command -v ags &> /dev/null; then
+            if [[ "$DISTRO_FAMILY" == "arch" ]]; then
+                log_warn "ags is not installed (AUR: aylurs-gtk-shell); the widget will not start."
+            else
+                log_warn "ags (AGS v3 / Astal) is not in standard $PKG_MANAGER repos. Install Astal + aylurs-gtk-shell manually or re-run with --conky."
+            fi
         fi
         ensure_cmd fc-cache
     fi
@@ -565,6 +778,10 @@ configure_wayland_session() {
 
     local sddm_session="plasma"
     local sddm_session_file="/usr/share/wayland-sessions/plasma.desktop"
+    if [[ ! -f "$sddm_session_file" && -f "/usr/share/wayland-sessions/plasmawayland.desktop" ]]; then
+        sddm_session="plasmawayland"
+        sddm_session_file="/usr/share/wayland-sessions/plasmawayland.desktop"
+    fi
     if [ ! -f "$sddm_session_file" ] && ! $DRY_RUN; then
         log_warn "Plasma Wayland session file not found ($sddm_session_file). SDDM config may not work until next reboot."
     fi
@@ -578,11 +795,21 @@ configure_wayland_session() {
         return 1
     fi
 
+    local sddm_theme="breath"
+    if [[ ! -d "/usr/share/sddm/themes/breath" ]]; then
+        if [[ -d "/usr/share/sddm/themes/breeze" ]]; then
+            sddm_theme="breeze"
+        else
+            sddm_theme=""
+        fi
+    fi
+
     if $DRY_RUN; then
         log_dry "mkdir -p $conf_dir"
         log_dry "cp $template_conf $sddm_conf"
         log_dry "sed -i 's/User=.*/User=$REAL_USER/' $sddm_conf"
         log_dry "set Session=$sddm_session in $sddm_conf"
+        [[ -n "$sddm_theme" ]] && log_dry "set Current=$sddm_theme in $sddm_conf"
         log_dry "write /var/lib/sddm/state.conf (Wayland)"
         log_dry "write /var/lib/sddm/.config/state.conf (Wayland)"
         log_dry "chown -R sddm:sddm /var/lib/sddm"
@@ -592,6 +819,9 @@ configure_wayland_session() {
         run_as_root cp "$template_conf" "$sddm_conf"
         run_as_root sed -i -E "s|^User=.*$|User=$REAL_USER|" "$sddm_conf"
         run_as_root sed -i -E "s|^Session=.*$|Session=$sddm_session|" "$sddm_conf"
+        if [[ -n "$sddm_theme" ]]; then
+            run_as_root sed -i -E "s|^Current=.*$|Current=$sddm_theme|" "$sddm_conf"
+        fi
 
         for state_conf in /var/lib/sddm/state.conf /var/lib/sddm/.config/state.conf; do
             run_as_root mkdir -p "$(dirname "$state_conf")"
@@ -720,11 +950,12 @@ setup_fstab() {
             IFS=':' read -r label mountpoint fallback_uuid <<< "$entry"
             if grep -q " ${mountpoint} " "$fstab_file" 2>/dev/null; then
                 if ! findmnt -M "$mountpoint" &>/dev/null; then
-                    local current_run_media="/run/media/${REAL_USER}/${label}"
-                    if findmnt -M "$current_run_media" &>/dev/null; then
-                        log_info "Unmounting temporary mount at $current_run_media..."
-                        run_as_root umount "$current_run_media" 2>/dev/null || log_warn "Could not unmount $current_run_media (may be in use)."
-                    fi
+                    for current_run_media in "/run/media/${REAL_USER}/${label}" "/media/${REAL_USER}/${label}"; do
+                        if findmnt -M "$current_run_media" &>/dev/null; then
+                            log_info "Unmounting temporary mount at $current_run_media..."
+                            run_as_root umount "$current_run_media" 2>/dev/null || log_warn "Could not unmount $current_run_media (may be in use)."
+                        fi
+                    done
 
                     if run_as_root mount "$mountpoint" 2>/dev/null; then
                         log_ok "Successfully mounted $mountpoint"
@@ -806,6 +1037,9 @@ install_fonts() {
 
     if $DRY_RUN; then
         log_dry "cp *.ttf $REAL_HOME/.local/share/fonts/"
+        if [[ "$DISTRO_FAMILY" != "arch" ]]; then
+            log_dry "Ensure Hack Nerd Font is installed (download from GitHub releases if missing)"
+        fi
         log_dry "fc-cache -fv"
     else
         if ! compgen -G "$REPO_DIR/ags/fonts/*.ttf" > /dev/null; then
@@ -813,6 +1047,27 @@ install_fonts() {
         fi
 
         cp "$REPO_DIR"/ags/fonts/*.ttf "$REAL_HOME/.local/share/fonts/"
+
+        # On non-Arch distros, ttf-hack-nerd is not in standard repos; fetch from Nerd Fonts if missing
+        if [[ "$DISTRO_FAMILY" != "arch" ]]; then
+            if ! fc-list : family 2>/dev/null | grep -qi "Hack Nerd Font"; then
+                if command -v curl &>/dev/null && command -v unzip &>/dev/null; then
+                    log_info "Downloading Hack Nerd Font..."
+                    local tmp_zip
+                    tmp_zip="$(mktemp --suffix=.zip)"
+                    if curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Hack.zip" -o "$tmp_zip"; then
+                        mkdir -p "$REAL_HOME/.local/share/fonts/HackNerdFont"
+                        unzip -qo "$tmp_zip" "*.ttf" -d "$REAL_HOME/.local/share/fonts/HackNerdFont" || log_warn "Failed to extract Hack Nerd Font"
+                    else
+                        log_warn "Failed to download Hack Nerd Font; Nerd Font icons may not render."
+                    fi
+                    rm -f "$tmp_zip"
+                else
+                    log_warn "curl/unzip unavailable; skipping Hack Nerd Font download."
+                fi
+            fi
+        fi
+
         fc-cache -fv > /dev/null
     fi
 
@@ -938,8 +1193,25 @@ setup_zsh() {
     log_ok "Zsh configuration applied"
 }
 
+detect_plasma_major() {
+    local ver=""
+    if command -v plasmashell &>/dev/null; then
+        ver="$(plasmashell --version 2>/dev/null | awk '{print $2}' | cut -d. -f1)"
+    fi
+    if [[ -z "$ver" ]]; then
+        if command -v kwriteconfig6 &>/dev/null; then ver="6"
+        elif command -v kwriteconfig5 &>/dev/null; then ver="5"
+        else ver="6"
+        fi
+    fi
+    echo "$ver"
+}
+
 restore_plasma_config() {
     log_progress "$1" "$2" "Restoring KDE Plasma configuration"
+    local plasma_major
+    plasma_major="$(detect_plasma_major)"
+
     local plasma_files=(
         "plasmarc" "plasma-org.kde.plasma.desktop-appletsrc" "plasmashellrc"
         "kglobalshortcutsrc" "kwinrc" "kdeglobals" "kactivitymanagerdrc"
@@ -949,9 +1221,16 @@ restore_plasma_config() {
 
     if $DRY_RUN; then
         log_dry "Would create backup dir: $backup_dir"
-        for file in "${plasma_files[@]}"; do
-            log_dry "Would backup + restore: $file"
-        done
+        if [[ "$plasma_major" == "5" ]]; then
+            log_dry "Plasma 5 detected: would skip Plasma 6 layout files (applets/kwin/shortcuts) and only apply theme + cursor settings"
+        else
+            for file in "${plasma_files[@]}"; do
+                log_dry "Would backup + restore: $file"
+            done
+            if [[ ! -f "/usr/share/applications/org.manjaro.pamac.manager.desktop" ]]; then
+                log_dry "Would replace/remove Manjaro pamac launcher in plasma-org.kde.plasma.desktop-appletsrc"
+            fi
+        fi
         log_dry "Would set Plasma desktop theme to dark (breeze-dark or breath-dark)"
         log_dry "Would set Vimix cursor theme in kdeglobals, kcminputrc, Xresources, xprofile, gtkrc, gtk-3.0, gtk-4.0"
         log_ok "KDE Plasma settings (dry-run)"
@@ -960,11 +1239,31 @@ restore_plasma_config() {
 
     mkdir -p "$backup_dir"
 
-    for file in "${plasma_files[@]}"; do
-        ensure_file "$REPO_DIR/plasma/$file"
-        [[ -f "$REAL_HOME/.config/$file" ]] && cp "$REAL_HOME/.config/$file" "$backup_dir"/
-        cp "$REPO_DIR"/plasma/"$file" "$REAL_HOME/.config/$file"
-    done
+    if [[ "$plasma_major" == "5" ]]; then
+        log_warn "Plasma 5 detected (e.g. Kubuntu 24.04 LTS): skipping Plasma 6 layout files to avoid breaking panels/widgets; applying dark theme and cursor settings only."
+        for file in "plasmarc" "kdeglobals" "kcminputrc"; do
+            [[ -f "$REAL_HOME/.config/$file" ]] && cp "$REAL_HOME/.config/$file" "$backup_dir"/
+        done
+    else
+        for file in "${plasma_files[@]}"; do
+            ensure_file "$REPO_DIR/plasma/$file"
+            [[ -f "$REAL_HOME/.config/$file" ]] && cp "$REAL_HOME/.config/$file" "$backup_dir"/
+            cp "$REPO_DIR"/plasma/"$file" "$REAL_HOME/.config/$file"
+        done
+
+        # Replace or remove Manjaro-specific pamac launcher on non-Manjaro systems
+        local applets_rc="$REAL_HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+        if [[ -f "$applets_rc" && ! -f "/usr/share/applications/org.manjaro.pamac.manager.desktop" ]]; then
+            if [[ -f "/usr/share/applications/org.kde.discover.desktop" ]]; then
+                sed -i 's/org\.manjaro\.pamac\.manager\.desktop/org.kde.discover.desktop/g' "$applets_rc"
+            elif [[ -f "/usr/share/applications/octopi.desktop" ]]; then
+                sed -i 's/org\.manjaro\.pamac\.manager\.desktop/octopi.desktop/g' "$applets_rc"
+            else
+                sed -i -E -e 's/(applications:)?org\.manjaro\.pamac\.manager\.desktop//g' \
+                          -e 's/,,+/,/g' -e 's/=,/=/g' -e 's/,$//' "$applets_rc"
+            fi
+        fi
+    fi
 
     # Record which backup was created so rollback can find the latest
     echo "$backup_dir" > "$REAL_HOME/.config/.kde_last_backup"
@@ -1141,9 +1440,11 @@ step_is_selected() {
 # --- Execution ---
 
 parse_args "$@"
+detect_distro
 
 log_info "Log file: $LOG_FILE"
 log_info "Running as user: $REAL_USER (home: $REAL_HOME)"
+log_info "Detected distro: $DISTRO_ID (family: $DISTRO_FAMILY, pkg: $PKG_MANAGER)"
 
 if $DRY_RUN; then
     log_warn "DRY-RUN mode: no system changes will be made."

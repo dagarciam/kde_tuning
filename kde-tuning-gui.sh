@@ -29,7 +29,7 @@ fi
 APP_TITLE="KDE Tuning Installer"
 
 declare -A STEP_LABELS=(
-    [deps]="System Dependencies (pacman/yay)"
+    [deps]="System Dependencies (pacman/dnf/apt/zypper)"
     [wayland]="Plasma SDDM Session (Wayland)"
     [fstab]="Automount Storage Disks (/documentos, /juegos)"
     [repos]="External Themes & Plugins (GitHub)"
