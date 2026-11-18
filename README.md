@@ -4,24 +4,7 @@ Este repositorio contiene los archivos de configuración, temas y scripts necesa
 
 ## 🚀 Instalación Rápida
 
-### GUI (recomendado en KDE Plasma)
-
-Requiere `kdialog` (instalado por defecto en Manjaro KDE):
-
-```bash
-git clone git@github.com:dagarciam/kde_tuning.git
-cd kde_tuning
-chmod +x setup.sh kde-tuning-gui.sh
-./kde-tuning-gui.sh
-```
-
-También puedes instalar el lanzador de escritorio para acceder desde el menú de aplicaciones:
-
-```bash
-cp kde-tuning.desktop ~/.local/share/applications/
-```
-
-### CLI (terminal)
+Ejecuta el asistente CLI:
 
 ```bash
 git clone git@github.com:dagarciam/kde_tuning.git
@@ -36,7 +19,7 @@ chmod +x setup.sh
 
 ### Ejecución modular (pasos específicos)
 
-Los pasos disponibles son: `deps`, `x11`, `repos`, `fonts`, `ags`, `zsh`, `plasma`, `session`.
+Los pasos disponibles son: `deps`, `wayland`, `fstab`, `repos`, `fonts`, `ags`, `conky`, `zsh`, `plasma`, `session`.
 
 ```bash
 # Solo instalar fuentes y configuración de Zsh
@@ -92,10 +75,10 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 ```
 ./setup.sh [OPCIONES]
 
-  --steps <list>     Pasos separados por coma: deps,x11,fstab,repos,fonts,ags,zsh,plasma,session
+  --steps <list>     Pasos separados por coma: deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session
   --dry-run          Simular sin cambios reales
   --no-restart       Omitir reinicio de Plasma Shell al final
-  --gui-mode         Salida estructurada para consumo por GUI (prefijos [STEP/PROGRESS/FAIL])
+  --conky            Usar widget Conky en vez de Mimosa AGS
   --rollback [dir]   Restaurar config KDE desde un directorio de backup
   -h, --help         Mostrar ayuda
 ```
@@ -106,7 +89,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 
 ### 0. Gestión de Dependencias Automatizada
 El script `setup.sh` detecta si tienes **yay** instalado y lo usa por defecto; de lo contrario, utiliza **pacman**. Instala automáticamente:
-- **Core:** `ags` (AUR: `aylurs-gtk-shell` + `libastal-meta`), `gtk4-layer-shell`, `gjs`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
+- **Core:** `konsole`, `ags` (AUR: `aylurs-gtk-shell` + `libastal-meta`), `gtk4-layer-shell`, `gjs`, `playerctl`, `jq`, `curl`, `git`, `zsh`, `python`.
 - **Productividad:** `fzf`, `zoxide`, `fastfetch`, `lazygit`, `git-delta`.
 - **Soporte KDE/X11:** `plasma-workspace-x11` (Crucial para Plasma 6), `appmenu-gtk-module` (Soporte de Menú Global para apps GTK/Electron).
 - **Hardware:** `lm_sensors` (Temperaturas), `wireless_tools` (SSID WiFi).
@@ -127,6 +110,8 @@ El módulo `fstab` detecta automáticamente las particiones de almacenamiento se
 - **Ejecución manual:** `ags run ags/app.tsx` dentro de una sesión Wayland.
 
 ### 2. Terminal Maestra (Zsh & Powerlevel10k)
+- **Atajo global:** `Ctrl + Alt + T` mapeado automáticamente en KDE Plasma para abrir la terminal (Konsole).
+- **Shell por defecto:** Establece `zsh` como el shell de login predeterminado del usuario.
 - **Plugins Visuales (p10k segments):**
   - `pamac_updates`: Contador de actualizaciones pendientes (con caché de 30min).
   - `ram` & `load`: Monitoreo de recursos en tiempo real en el prompt.
@@ -184,16 +169,7 @@ El cursor se configura en todas las capas para garantizar consistencia total:
 - Los alias de sistema (`update`, `install`, `clean`) usan **pamac** para incluir soporte AUR por defecto.
 - Powerlevel10k se instala con `--depth=1` (último commit del repositorio oficial).
 
-## 🖥️ GUI — KDialog
-
-La GUI (`kde-tuning-gui.sh`) requiere:
-- `kdialog` — incluido en Manjaro KDE por defecto.
-- `qdbus` — para actualización del progreso en tiempo real.
-- `setup.sh` ejecutable en el mismo directorio.
-
-La GUI permite: selección de módulos, toggles dry-run/no-restart, confirmación de impacto, progreso en tiempo real, rollback con selección de backup y manejo de errores con log detallado.
-
-### Codes de salida
+### Códigos de salida
 | Código | Significado |
 |--------|-------------|
 | `0` | Éxito |
