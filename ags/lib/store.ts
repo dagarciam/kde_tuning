@@ -6,6 +6,7 @@ import GLib from "gi://GLib?version=2.0"
 import {
     CpuTimes, parseCpuList, readBattery, readCpuTimes, readGpuLoad, readMem, readNet,
     readTempC, readVram, usage, cpuFreqGHz, readText, fileExists,
+    readKernel, readOsRelease, readUptime,
 } from "./sys"
 
 declare const SRC: string
@@ -44,6 +45,9 @@ function loadHw(): Hw {
 
 export const hw: Hw = loadHw()
 
+export const osInfo = readOsRelease()
+export const kernelVersion = readKernel()
+
 /** Logical CPU ids per physical core, ordered by first thread id. */
 export const coreGroups: number[][] = (hw.core_siblings.length
     ? hw.core_siblings.map(parseCpuList).filter((g) => g.length)
@@ -71,6 +75,7 @@ export type Stats = {
     txHist: number[]
     clock: string
     date: string
+    uptime: string
 }
 
 const HIST = 30
@@ -80,7 +85,7 @@ const [stats, setStats] = createState<Stats>({
     cpuTotal: 0, cores: coreGroups.map(() => 0), freq: 0, temp: 0,
     ramUsed: 0, ramTotal: 1, swapUsed: 0, swapTotal: 0, vramUsed: 0, vramTotal: 0,
     battery: 0, gpu: 0, rxRate: 0, txRate: 0, rxTotal: 0, txTotal: 0,
-    rxHist: zeros(), txHist: zeros(), clock: "", date: "",
+    rxHist: zeros(), txHist: zeros(), clock: "", date: "", uptime: "",
 })
 export { stats }
 
@@ -117,6 +122,7 @@ function tick(): boolean {
         txHist: [...prev.txHist.slice(1), tx],
         clock: now.format("%H:%M")!,
         date: now.format("%A %d %B")!,
+        uptime: readUptime(),
     })
     prevCpu = cur
     prevNet = net

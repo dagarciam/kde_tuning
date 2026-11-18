@@ -2,7 +2,7 @@ import app from "ags/gtk4/app"
 import { Astal, Gdk, Gtk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
 import { startPollers } from "./lib/store"
-import { Clock, CpuCard, MediaCard, NetworkCard, RingsCard, StorageCard, WeatherCard } from "./widget/Cards"
+import { Clock, CpuCard, MediaCard, NetworkCard, RingsCard, StorageCard, SystemCard, WeatherCard } from "./widget/Cards"
 
 declare const SRC: string
 const root = typeof SRC !== "undefined" ? SRC : GLib.get_current_dir()
@@ -25,6 +25,7 @@ function Mimosa(gdkmonitor: Gdk.Monitor) {
         >
             <box orientation={Gtk.Orientation.VERTICAL} class="column" spacing={10} widthRequest={300}>
                 <Clock />
+                <SystemCard />
                 <box spacing={10} homogeneous>
                     <WeatherCard />
                     <NetworkCard />

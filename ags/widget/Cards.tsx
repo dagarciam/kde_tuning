@@ -4,8 +4,10 @@ import Gdk from "gi://Gdk?version=4.0"
 import GdkPixbuf from "gi://GdkPixbuf?version=2.0"
 import Gio from "gi://Gio?version=2.0"
 import GLib from "gi://GLib?version=2.0"
+import Pango from "gi://Pango?version=1.0"
+import PangoCairo from "gi://PangoCairo?version=1.0"
 import { fmtBytes, fmtShort, pad2, pct } from "../lib/format"
-import { coreGroups, disks, hw, media, ssid, stats, weather } from "../lib/store"
+import { coreGroups, disks, hw, kernelVersion, media, osInfo, ssid, stats, weather } from "../lib/store"
 import { Ring } from "./Ring"
 import { Sparkline } from "./Sparkline"
 
@@ -19,6 +21,57 @@ export function Clock() {
         <box orientation={V} class="clock" halign={START}>
             <label class="clock-time" halign={START} label={stats.as((s) => s.clock)} />
             <label class="clock-date" halign={START} label={stats.as((s) => s.date)} />
+        </box>
+    )
+}
+
+export function SystemCard() {
+    return (
+        <box class="card system" spacing={12} valign={Gtk.Align.CENTER}>
+            <drawingarea
+                valign={Gtk.Align.CENTER}
+                halign={Gtk.Align.CENTER}
+                $={(area: Gtk.DrawingArea) => {
+                    area.set_content_width(40)
+                    area.set_content_height(40)
+                    area.set_draw_func((_a, cr, w, h) => {
+                        drawRoundedRect(cr, 0.5, 0.5, w - 1, h - 1, 12)
+                        cr.setSourceRGBA(0.196, 0.843, 0.298, 0.12)
+                        cr.fillPreserve()
+                        cr.setSourceRGBA(0.196, 0.843, 0.298, 0.28)
+                        cr.setLineWidth(1)
+                        cr.stroke()
+
+                        const layout = PangoCairo.create_layout(cr)
+                        layout.set_font_description(Pango.FontDescription.from_string("Hack Nerd Font 20px"))
+                        layout.set_text(osInfo.icon, -1)
+                        const [ink] = layout.get_extents()
+                        const inkW = ink.width / Pango.SCALE
+                        const inkH = ink.height / Pango.SCALE
+                        const inkX = ink.x / Pango.SCALE
+                        const inkY = ink.y / Pango.SCALE
+
+                        cr.moveTo((w - inkW) / 2 - inkX, (h - inkH) / 2 - inkY)
+                        cr.setSourceRGBA(0.196, 0.843, 0.298, 1)
+                        PangoCairo.show_layout(cr, layout)
+                    })
+                }}
+            />
+            <box orientation={V} valign={Gtk.Align.CENTER} hexpand spacing={3}>
+                <box valign={Gtk.Align.CENTER}>
+                    <label class="sys-distro" halign={START} label={osInfo.name} />
+                    <box hexpand />
+                    <label class="sys-uptime" halign={END} label={stats.as((s) => `󱎫 ${s.uptime}`)} />
+                </box>
+                <label
+                    class="sys-kernel"
+                    halign={START}
+                    wrap={false}
+                    ellipsize={3}
+                    maxWidthChars={25}
+                    label={kernelVersion.startsWith("Linux") ? kernelVersion : `Linux ${kernelVersion}`}
+                />
+            </box>
         </box>
     )
 }

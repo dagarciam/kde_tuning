@@ -130,3 +130,64 @@ export function readVram(drmDevPath: string): { total: number; used: number } {
     }
 }
 
+// ---------- OS & Kernel & Uptime ----------
+export function readKernel(): string {
+    const raw = readText("/proc/sys/kernel/osrelease")
+    return raw || "Linux"
+}
+
+export function readUptime(): string {
+    const raw = readText("/proc/uptime")
+    if (!raw) return ""
+    const secs = Math.floor(Number(raw.split(/\s+/)[0]) || 0)
+    const days = Math.floor(secs / 86400)
+    const hours = Math.floor((secs % 86400) / 3600)
+    const mins = Math.floor((secs % 3600) / 60)
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${mins}m`
+    return `${mins}m`
+}
+
+export type OsRelease = {
+    name: string
+    id: string
+    icon: string
+}
+
+export function readOsRelease(): OsRelease {
+    const text = readText("/etc/os-release")
+    let name = ""
+    let id = "linux"
+    for (const line of text.split("\n")) {
+        const m = line.match(/^([A-Z_]+)=(.*)$/)
+        if (!m) continue
+        const key = m[1]
+        let val = m[2].trim()
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1)
+        }
+        if (key === "PRETTY_NAME" && !name) name = val
+        if (key === "NAME" && (!name || name === "Linux")) name = val
+        if (key === "ID") id = val.toLowerCase()
+    }
+    if (!name) name = "Linux"
+
+    const s = id.toLowerCase()
+    let icon = ""
+    if (s.includes("manjaro")) icon = ""
+    else if (s.includes("arch")) icon = ""
+    else if (s.includes("fedora")) icon = ""
+    else if (s.includes("ubuntu")) icon = ""
+    else if (s.includes("debian")) icon = ""
+    else if (s.includes("opensuse") || s.includes("suse")) icon = ""
+    else if (s.includes("nixos")) icon = ""
+    else if (s.includes("gentoo")) icon = ""
+    else if (s.includes("void")) icon = ""
+    else if (s.includes("alpine")) icon = ""
+    else if (s.includes("pop")) icon = ""
+    else if (s.includes("mint")) icon = "󰣭"
+
+    return { name, id, icon }
+}
+
+
