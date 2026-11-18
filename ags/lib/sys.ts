@@ -103,6 +103,10 @@ export function readBattery(dev: string): number {
     return dev ? readNum(`/sys/class/power_supply/${dev}/capacity`) : 0
 }
 
+export function readBatteryStatus(dev: string): string {
+    return dev ? readText(`/sys/class/power_supply/${dev}/status`) : ""
+}
+
 export function readTempC(path: string): number {
     return path ? readNum(path) / 1000 : 0
 }

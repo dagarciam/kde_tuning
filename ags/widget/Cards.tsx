@@ -109,10 +109,32 @@ export function NetworkCard() {
     )
 }
 
+function batteryIcon(pctVal: number, charging: boolean): string {
+    if (charging) return "󰂄"
+    if (pctVal <= 10) return "󰂎"
+    if (pctVal <= 20) return "󰁺"
+    if (pctVal <= 30) return "󰁻"
+    if (pctVal <= 40) return "󰁼"
+    if (pctVal <= 50) return "󰁽"
+    if (pctVal <= 60) return "󰁾"
+    if (pctVal <= 70) return "󰁿"
+    if (pctVal <= 80) return "󰂀"
+    if (pctVal <= 90) return "󰂁"
+    if (pctVal <= 95) return "󰂂"
+    return "󰁹"
+}
+
 export function RingsCard() {
     // 2nd ring: battery on laptops, VRAM (or swap) on desktops
     const second = hw.has_battery
-        ? { icon: "󰁹", title: "BAT", invertColor: true, value: stats.as((s) => s.battery), text: stats.as((s) => pct(s.battery)) }
+        ? {
+              icon: stats.as((s) => batteryIcon(s.battery, s.batteryCharging)),
+              centerClass: stats.as((s) => (s.batteryCharging ? "ring-icon charging" : "ring-icon")),
+              title: "BAT",
+              invertColor: true,
+              value: stats.as((s) => s.battery),
+              text: stats.as((s) => pct(s.battery)),
+          }
         : hw.vram_total > 0
           ? {
                 icon: "󰍹", title: "VRAM",
