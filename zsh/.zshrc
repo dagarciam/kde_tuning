@@ -24,10 +24,41 @@ if [[ -o login ]]; then
   add-zsh-hook precmd _run_fastfetch_once
 fi
 
+# --- History & Shell Options ---
+HISTFILE="${HISTFILE:-$HOME/.zsh_history}"
+HISTSIZE=50000
+SAVEHIST=50000
+setopt APPEND_HISTORY SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANKS
+setopt AUTO_CD INTERACTIVE_COMMENTS
+
+# --- Extra Completions (before compinit) ---
+if [[ -d ~/.zsh-plugins/zsh-completions/src ]]; then
+  fpath=(~/.zsh-plugins/zsh-completions/src $fpath)
+fi
+
 # Source manjaro-zsh-configuration
 if [[ -e /usr/share/zsh/manjaro-zsh-config ]]; then
   source /usr/share/zsh/manjaro-zsh-config
 fi
+
+# Initialize completion system with daily cache when not already loaded
+if (( ! $+functions[compdef] )); then
+  autoload -Uz compinit
+  if [[ -n ${ZDOTDIR:-$HOME}/.zcompdump(#qN.mh+24) ]]; then
+    compinit
+  else
+    compinit -C
+  fi
+fi
+
+# Completion styling (case-insensitive + colors)
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*'
+zstyle ':completion:*' menu no
+zstyle ':completion:*:descriptions' format '[%d]'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'ls --color=always -1 $realpath 2>/dev/null'
+zstyle ':fzf-tab:complete:z:*' fzf-preview 'ls --color=always -1 $realpath 2>/dev/null'
+zstyle ':fzf-tab:*' switch-group '<' '>'
 
 # --- Powerlevel10k ---
 if [[ -r ~/powerlevel10k/powerlevel10k.zsh-theme ]]; then
@@ -38,9 +69,35 @@ elif [[ -e /usr/share/zsh/manjaro-zsh-prompt ]]; then
   source /usr/share/zsh/manjaro-zsh-prompt
 fi
 
-# --- Plugins ---
-[ -f ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ] && source ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
-[ -f ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] && source ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+# --- Plugins (order matters: fzf-tab -> autosuggestions/autopair/ysu -> syntax highlighting -> history-substring-search) ---
+[[ -f ~/.zsh-plugins/fzf-tab/fzf-tab.plugin.zsh ]] && source ~/.zsh-plugins/fzf-tab/fzf-tab.plugin.zsh
+
+if [[ -f ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+  ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+  ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
+  source ~/.zsh-plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+
+[[ -f ~/.zsh-plugins/zsh-autopair/autopair.zsh ]] && source ~/.zsh-plugins/zsh-autopair/autopair.zsh
+
+if [[ -f ~/.zsh-plugins/zsh-you-should-use/you-should-use.plugin.zsh ]]; then
+  export YSU_MESSAGE_POSITION="after"
+  source ~/.zsh-plugins/zsh-you-should-use/you-should-use.plugin.zsh
+fi
+
+if [[ -f ~/.zsh-plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh ]]; then
+  source ~/.zsh-plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
+elif [[ -f ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+  source ~/.zsh-plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+
+if [[ -f ~/.zsh-plugins/zsh-history-substring-search/zsh-history-substring-search.zsh ]]; then
+  source ~/.zsh-plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
+  bindkey '^[[A' history-substring-search-up
+  bindkey '^[[B' history-substring-search-down
+  [[ -n "${terminfo[kcuu1]:-}" ]] && bindkey "${terminfo[kcuu1]}" history-substring-search-up
+  [[ -n "${terminfo[kcud1]:-}" ]] && bindkey "${terminfo[kcud1]}" history-substring-search-down
+fi
 
 # --- Tools ---
 if command -v zoxide &> /dev/null; then

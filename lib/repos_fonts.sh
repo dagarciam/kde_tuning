@@ -36,8 +36,13 @@ install_external_repos() {
     clone_repo_if_missing "$REAL_HOME/powerlevel10k" "https://github.com/romkatv/powerlevel10k.git" "Powerlevel10k" --depth=1
 
     dry_mkdir "$REAL_HOME/.zsh-plugins"
-    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions" "zsh-autosuggestions"
-    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git" "zsh-syntax-highlighting"
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git" "zsh-autosuggestions" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-completions" "https://github.com/zsh-users/zsh-completions.git" "zsh-completions" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/fast-syntax-highlighting" "https://github.com/zdharma-continuum/fast-syntax-highlighting.git" "fast-syntax-highlighting" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/fzf-tab" "https://github.com/Aloxaf/fzf-tab.git" "fzf-tab" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search.git" "zsh-history-substring-search" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-autopair" "https://github.com/hlissner/zsh-autopair.git" "zsh-autopair" --depth=1
+    clone_repo_if_missing "$REAL_HOME/.zsh-plugins/zsh-you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use.git" "zsh-you-should-use" --depth=1
 
     if $DRY_RUN; then
         log_dry "Would clone and install Orchis KDE theme (if missing)"
