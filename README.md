@@ -75,7 +75,7 @@ ls /tmp/kde-tuning-*.log | tail -1 | xargs cat
 ```
 ./setup.sh [OPCIONES]
 
-  --steps <list>     Pasos separados por coma: deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session
+  --steps <list>     Pasos separados por coma: deps,wayland,fstab,repos,fonts,grub,ags,conky,zsh,plasma,session
   --dry-run          Simular sin cambios reales
   --no-restart       Omitir reinicio de Plasma Shell al final
   --conky            Usar widget Conky en vez de Mimosa AGS

@@ -151,7 +151,7 @@ restore_plasma_config() {
         qdbus_cmd="qdbus"
     fi
     if [[ -n "$qdbus_cmd" ]]; then
-        "$qdbus_cmd" org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.reloadConfig 2>/dev/null || true
+        "$qdbus_cmd" org.kde.kglobalaccel /kglobalaccel org.kde.KGlobalAccel.reloadConfig &>/dev/null || true
     fi
 
     mkdir -p "$REAL_HOME/.icons/default"

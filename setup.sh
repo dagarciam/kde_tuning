@@ -10,8 +10,8 @@
 #
 # Options:
 #   --steps <list>     Comma-separated steps to run:
-#                      deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session
-#                      (default runs: deps,wayland,fstab,repos,fonts,ags,zsh,plasma,session)
+#                      deps,wayland,fstab,repos,fonts,grub,ags,conky,zsh,plasma,session
+#                      (default runs: deps,wayland,fstab,repos,fonts,grub,ags,zsh,plasma,session)
 #   --conky            Use Conky widget instead of Mimosa AGS
 #   --dry-run          Simulate actions without modifying the system
 #   --no-restart       Skip Plasma Shell restart at the end
@@ -33,8 +33,8 @@ USE_CONKY=false
 SELECTED_STEPS=()
 
 # All available steps in execution order
-ALL_STEPS=(deps wayland fstab repos fonts ags conky zsh plasma session)
-DEFAULT_STEPS=(deps wayland fstab repos fonts ags zsh plasma session)
+ALL_STEPS=(deps wayland fstab repos fonts grub ags conky zsh plasma session)
+DEFAULT_STEPS=(deps wayland fstab repos fonts grub ags zsh plasma session)
 
 # Unique log file per run
 LOG_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -47,6 +47,7 @@ source "$SCRIPT_DIR/lib/distro.sh"
 source "$SCRIPT_DIR/lib/wayland.sh"
 source "$SCRIPT_DIR/lib/fstab.sh"
 source "$SCRIPT_DIR/lib/repos_fonts.sh"
+source "$SCRIPT_DIR/lib/grub.sh"
 source "$SCRIPT_DIR/lib/widgets.sh"
 source "$SCRIPT_DIR/lib/zsh.sh"
 source "$SCRIPT_DIR/lib/plasma.sh"
@@ -173,7 +174,7 @@ fi
 preflight_checks
 
 # Only request sudo if a step that needs it is selected
-if step_is_selected "deps" || step_is_selected "wayland" || step_is_selected "fstab" || step_is_selected "zsh"; then
+if step_is_selected "deps" || step_is_selected "wayland" || step_is_selected "fstab" || step_is_selected "grub" || step_is_selected "zsh"; then
     if [ "$EUID" -ne 0 ] && command -v sudo &> /dev/null && ! $DRY_RUN; then
         if sudo -n true 2>/dev/null; then
             keep_sudo_alive
@@ -198,6 +199,7 @@ for step in "${ALL_STEPS[@]}"; do
             fstab)   run_step "Configure fstab automounts"     setup_fstab               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             repos)   run_step "Install external repos"         install_external_repos    "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             fonts)   run_step "Install fonts"                  install_fonts             "$CURRENT_STEP" "$TOTAL_STEPS" ;;
+            grub)    run_step "Install GRUB2 theme"            setup_grub_theme          "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             ags)     run_step "Setup AGS widget (Default)"     setup_ags                 "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             conky)   run_step "Setup Conky widget (Optional)"  setup_conky               "$CURRENT_STEP" "$TOTAL_STEPS" ;;
             zsh)     run_step "Setup Zsh"                      setup_zsh                 "$CURRENT_STEP" "$TOTAL_STEPS" ;;
