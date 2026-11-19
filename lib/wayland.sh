@@ -77,6 +77,7 @@ configure_wayland_session() {
 
     if $DRY_RUN; then
         log_dry "mkdir -p $conf_dir"
+        log_dry "rm -f $conf_dir/*.bak*"
         log_dry "cp $template_conf $sddm_conf"
         log_dry "sed -i 's/User=.*/User=$REAL_USER/' $sddm_conf"
         log_dry "set Session=$sddm_session in $sddm_conf"
@@ -87,6 +88,14 @@ configure_wayland_session() {
     else
         log_info "Copying SDDM Wayland template to $sddm_conf..."
         run_as_root mkdir -p "$conf_dir"
+        # SDDM reads ALL files in /etc/sddm.conf.d/ alphabetically regardless of extension;
+        # remove .bak files so an old backup (e.g. kde_settings.conf.bak) doesn't override kde_settings.conf.
+        local bak_file
+        for bak_file in "$conf_dir"/*.bak*; do
+            [[ -e "$bak_file" ]] || continue
+            log_warn "Removing stale SDDM backup that overrides config: $bak_file"
+            run_as_root rm -f "$bak_file"
+        done
         run_as_root cp "$template_conf" "$sddm_conf"
         run_as_root sed -i -E "s|^User=.*$|User=$REAL_USER|" "$sddm_conf"
         run_as_root sed -i -E "s|^Session=.*$|Session=$sddm_session|" "$sddm_conf"

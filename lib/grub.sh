@@ -163,6 +163,135 @@ EOF
     fi
 }
 
+detect_primary_monitor_resolution() {
+    local status_file
+    for status_file in /sys/class/drm/card*-*/status; do
+        [[ -r "$status_file" ]] || continue
+        if [[ "$(cat "$status_file" 2>/dev/null)" == "connected" ]]; then
+            local modes_file
+            modes_file="$(dirname "$status_file")/modes"
+            [[ -r "$modes_file" ]] || continue
+            local mode
+            mode="$(head -n 1 "$modes_file" 2>/dev/null || true)"
+            if [[ "$mode" =~ ^[0-9]+x[0-9]+$ ]]; then
+                echo "$mode"
+                return 0
+            fi
+        fi
+    done
+    return 0
+}
+
+# Build a comma-separated GRUB_GFXMODE fallback list preserving the monitor's aspect ratio
+build_grub_gfxmode() {
+    local native_res="$1"
+    if [[ -z "$native_res" || ! "$native_res" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+        echo "auto"
+        return 0
+    fi
+
+    local width="${BASH_REMATCH[1]}"
+    local height="${BASH_REMATCH[2]}"
+    local ratio_x100=$(( width * 100 / height ))
+
+    local candidates=("$native_res")
+    if (( ratio_x100 >= 350 )); then
+        # 32:9 Super Ultrawide (e.g. 5120x1440)
+        candidates+=("3840x1080" "2560x1080" "1920x1080")
+    elif (( ratio_x100 >= 230 && ratio_x100 <= 245 )); then
+        # 21:9 Ultrawide (e.g. 3440x1440 -> 2560x1080)
+        candidates+=("2560x1080" "1920x1080")
+    elif (( ratio_x100 >= 175 && ratio_x100 <= 180 )); then
+        # 16:9 (e.g. 3840x2160, 2560x1440, 1920x1080)
+        (( width >= 2560 )) && candidates+=("2560x1440")
+        (( width >= 1920 )) && candidates+=("1920x1080")
+        candidates+=("1280x720")
+    elif (( ratio_x100 >= 155 && ratio_x100 <= 165 )); then
+        # 16:10 (e.g. 2560x1600, 1920x1200)
+        (( width >= 1920 )) && candidates+=("1920x1200")
+        (( width >= 1680 )) && candidates+=("1680x1050")
+        candidates+=("1440x900" "1920x1080")
+    else
+        candidates+=("1920x1080")
+    fi
+    candidates+=("auto")
+
+    # Deduplicate preserving order
+    local result="" seen=" " item
+    for item in "${candidates[@]}"; do
+        if [[ "$seen" != *" $item "* ]]; then
+            seen+="$item "
+            result="${result:+${result},}${item}"
+        fi
+    done
+    echo "$result"
+}
+
+# Fit theme background.png to the monitor's native resolution without cropping logos/text,
+# extending edge pixels outward to fill ultrawide or taller aspect ratios seamlessly
+adapt_grub_theme_background() {
+    local theme_dir="$1"
+    local native_res="$2"
+    local bg_file="${theme_dir}/background.png"
+    local orig_bg="${theme_dir}/background.png.orig"
+
+    [[ -n "$native_res" && "$native_res" =~ ^([0-9]+)x([0-9]+)$ && -f "$bg_file" ]] || return 0
+    local target_w="${BASH_REMATCH[1]}"
+    local target_h="${BASH_REMATCH[2]}"
+
+    local im_bin=""
+    if command -v magick &>/dev/null; then
+        im_bin="magick"
+    elif command -v convert &>/dev/null; then
+        im_bin="convert"
+    else
+        return 0
+    fi
+
+    if [[ ! -f "$orig_bg" ]]; then
+        run_as_root cp "$bg_file" "$orig_bg"
+    fi
+
+    local cur_dims=""
+    cur_dims="$("$im_bin" identify -format '%wx%h' "$bg_file" 2>/dev/null || true)"
+    if [[ "$cur_dims" == "$native_res" ]]; then
+        return 0
+    fi
+
+    local orig_dims=""
+    orig_dims="$("$im_bin" identify -format '%wx%h' "$orig_bg" 2>/dev/null || true)"
+    if [[ ! "$orig_dims" =~ ^([0-9]+)x([0-9]+)$ ]]; then
+        return 0
+    fi
+    local orig_w="${BASH_REMATCH[1]}"
+    local orig_h="${BASH_REMATCH[2]}"
+
+    local scaled_w scaled_h
+    if (( orig_w * target_h <= target_w * orig_h )); then
+        scaled_h="$target_h"
+        scaled_w=$(( orig_w * target_h / orig_h ))
+    else
+        scaled_w="$target_w"
+        scaled_h=$(( orig_h * target_w / orig_w ))
+    fi
+    local pad_x=$(( (target_w - scaled_w) / 2 ))
+    local pad_y=$(( (target_h - scaled_h) / 2 ))
+
+    log_info "Adapting GRUB theme background (${cur_dims:-unknown} -> ${native_res}, preserving logo & footer)..."
+    local tmp_bg
+    tmp_bg="$(mktemp --suffix=.png)"
+    if "$im_bin" "$orig_bg" -resize "${native_res}" \
+        -virtual-pixel Edge -set option:distort:viewport "${target_w}x${target_h}-${pad_x}-${pad_y}" \
+        -filter point -distort SRT 0 +repage "$tmp_bg" 2>/dev/null; then
+        run_as_root cp "$tmp_bg" "$bg_file"
+        run_as_root chmod 644 "$bg_file"
+        log_ok "GRUB background adapted to ${native_res}"
+    else
+        log_warn "Failed to adapt GRUB background to ${native_res}; keeping original."
+    fi
+    rm -f "$tmp_bg"
+}
+
 setup_grub_theme() {
     log_progress "$1" "$2" "Installing GRUB2 theme"
 
@@ -180,13 +309,18 @@ setup_grub_theme() {
     local theme_dir="${themes_base}/${theme_name}"
     local grub_cfg=""
     grub_cfg="$(detect_grub_cfg_path)"
+    local native_res="" gfx_mode="auto"
+    native_res="$(detect_primary_monitor_resolution)"
+    gfx_mode="$(build_grub_gfxmode "$native_res")"
 
     if $DRY_RUN; then
         log_dry "Detected distro '$DISTRO_ID' (family: '$DISTRO_FAMILY') -> GRUB theme: '$theme_name'"
+        log_dry "Detected monitor resolution: '${native_res:-unknown}' -> GRUB_GFXMODE=\"${gfx_mode}\""
         log_dry "Would ensure os-prober is installed via '$PKG_MANAGER'"
         log_dry "Would clone $GRUB_THEMES_REPO (shallow) into $repo_dir if missing"
         log_dry "Would extract themes/${theme_name}.tar into $theme_dir"
-        log_dry "Would backup /etc/default/grub, set GRUB_THEME=\"${theme_dir}/theme.txt\", GRUB_DISABLE_OS_PROBER=false, and GRUB_DISABLE_BOOTNEXT=true"
+        [[ -n "$native_res" ]] && log_dry "Would adapt ${theme_dir}/background.png to ${native_res} (preserving aspect ratio)"
+        log_dry "Would backup /etc/default/grub, set GRUB_THEME=\"${theme_dir}/theme.txt\", GRUB_GFXMODE=\"${gfx_mode}\", GRUB_GFXPAYLOAD_LINUX=keep, GRUB_DISABLE_OS_PROBER=false, and GRUB_DISABLE_BOOTNEXT=true"
         log_dry "Would run os-prober to identify existing OSes on the PC"
         configure_grub_uki_entry
         if command -v update-grub &>/dev/null; then
@@ -240,6 +374,8 @@ setup_grub_theme() {
         return 0
     fi
 
+    adapt_grub_theme_background "$theme_dir" "$native_res"
+
     local grub_default="/etc/default/grub"
     local grub_backup="${grub_default}.bak.${LOG_TIMESTAMP}"
     log_info "Backing up ${grub_default} to ${grub_backup}..."
@@ -257,9 +393,19 @@ setup_grub_theme() {
         printf '\nGRUB_THEME="%s/theme.txt"\n' "$theme_dir" | run_as_root tee -a "$grub_default" >/dev/null
     fi
 
-    # Ensure GRUB_GFXMODE is set if only commented out
-    if grep -qE '^[[:space:]]*#[[:space:]]*GRUB_GFXMODE=' "$grub_default" && ! grep -qE '^[[:space:]]*GRUB_GFXMODE=' "$grub_default"; then
-        run_as_root sed -i -E 's|^[[:space:]]*#[[:space:]]*GRUB_GFXMODE=.*|GRUB_GFXMODE=auto|' "$grub_default"
+    # Set GRUB_GFXMODE to match the monitor's native resolution / aspect ratio
+    log_info "Configuring GRUB_GFXMODE=\"${gfx_mode}\" (monitor: ${native_res:-unknown})..."
+    if grep -qE '^[[:space:]]*#?[[:space:]]*GRUB_GFXMODE=' "$grub_default"; then
+        run_as_root sed -i -E "s|^[[:space:]]*#?[[:space:]]*GRUB_GFXMODE=.*|GRUB_GFXMODE=\"${gfx_mode}\"|" "$grub_default"
+    else
+        printf 'GRUB_GFXMODE="%s"\n' "$gfx_mode" | run_as_root tee -a "$grub_default" >/dev/null
+    fi
+
+    # Keep the chosen framebuffer resolution when handing over to the Linux kernel
+    if grep -qE '^[[:space:]]*#?[[:space:]]*GRUB_GFXPAYLOAD_LINUX=' "$grub_default"; then
+        run_as_root sed -i -E 's|^[[:space:]]*#?[[:space:]]*GRUB_GFXPAYLOAD_LINUX=.*|GRUB_GFXPAYLOAD_LINUX=keep|' "$grub_default"
+    else
+        printf 'GRUB_GFXPAYLOAD_LINUX=keep\n' | run_as_root tee -a "$grub_default" >/dev/null
     fi
 
     # Enable os-prober so GRUB detects other installed operating systems
