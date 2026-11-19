@@ -47,10 +47,10 @@ configure_wayland_touchpad() {
 configure_wayland_session() {
     log_progress "$1" "$2" "Configuring Plasma Wayland session & touchpad"
 
-    local sddm_session="plasma"
+    local sddm_session="plasma.desktop"
     local sddm_session_file="/usr/share/wayland-sessions/plasma.desktop"
     if [[ ! -f "$sddm_session_file" && -f "/usr/share/wayland-sessions/plasmawayland.desktop" ]]; then
-        sddm_session="plasmawayland"
+        sddm_session="plasmawayland.desktop"
         sddm_session_file="/usr/share/wayland-sessions/plasmawayland.desktop"
     fi
     if [ ! -f "$sddm_session_file" ] && ! $DRY_RUN; then
@@ -98,7 +98,7 @@ configure_wayland_session() {
             run_as_root mkdir -p "$(dirname "$state_conf")"
             run_as_root tee "$state_conf" > /dev/null <<EOF
 [Last]
-Session=${sddm_session_file}
+Session=${sddm_session}
 User=$REAL_USER
 EOF
         done
