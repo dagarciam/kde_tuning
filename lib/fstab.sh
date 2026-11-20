@@ -22,12 +22,15 @@ setup_fstab() {
     user_gid="$(id -g "$REAL_USER")"
 
     local fstab_file="/etc/fstab"
+    if [[ ! -f "$fstab_file" ]]; then
+        log_warn "/etc/fstab not found; skipping fstab configuration."
+        return 0
+    fi
+
     local fstab_modified=false
     local timestamp
     timestamp="$(date +%Y%m%d_%H%M%S)"
     local backup_file="/etc/fstab.bak-${timestamp}"
-
-    ensure_file "$fstab_file"
 
     for entry in "${targets[@]}"; do
         IFS=':' read -r label mountpoint fallback_uuid <<< "$entry"
