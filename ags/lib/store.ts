@@ -4,7 +4,7 @@ import { createState } from "ags"
 import { exec, execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import {
-    CpuTimes, parseCpuList, readBattery, readCpuTimes, readGpuLoad, readMem, readNet,
+    CpuTimes, parseCpuList, readBattery, readBatteryStatus, readCpuTimes, readGpuLoad, readMem, readNet,
     readTempC, readVram, usage, cpuFreqGHz, readText, fileExists,
     readKernel, readOsRelease, readUptime,
 } from "./sys"
@@ -66,6 +66,7 @@ export type Stats = {
     vramUsed: number
     vramTotal: number
     battery: number
+    batteryCharging: boolean
     gpu: number
     rxRate: number
     txRate: number
@@ -84,7 +85,7 @@ const zeros = () => Array.from({ length: HIST }, () => 0)
 const [stats, setStats] = createState<Stats>({
     cpuTotal: 0, cores: coreGroups.map(() => 0), freq: 0, temp: 0,
     ramUsed: 0, ramTotal: 1, swapUsed: 0, swapTotal: 0, vramUsed: 0, vramTotal: 0,
-    battery: 0, gpu: 0, rxRate: 0, txRate: 0, rxTotal: 0, txTotal: 0,
+    battery: 0, batteryCharging: false, gpu: 0, rxRate: 0, txRate: 0, rxTotal: 0, txTotal: 0,
     rxHist: zeros(), txHist: zeros(), clock: "", date: "", uptime: "",
 })
 export { stats }
@@ -116,6 +117,7 @@ function tick(): boolean {
         swapUsed: mem.swapUsed, swapTotal: mem.swapTotal,
         vramUsed: vram.used, vramTotal: vram.total,
         battery: hw.has_battery ? readBattery(hw.battery_dev) : 0,
+        batteryCharging: hw.has_battery ? readBatteryStatus(hw.battery_dev) === "Charging" : false,
         gpu: readGpuLoad(hw.drm_card_path),
         rxRate: rx, txRate: tx, rxTotal: net.rx, txTotal: net.tx,
         rxHist: [...prev.rxHist.slice(1), rx],

@@ -9,8 +9,8 @@ Este documento contiene las reglas operativas, directrices de seguridad y detall
 Este repositorio contiene la configuración, scripts de automatización y temas para un entorno de escritorio **Manjaro Linux con KDE Plasma** (X11 / Wayland).
 
 ### Componentes Principales:
-* **`setup.sh`**: Motor principal (CLI) para instalación, configuración modular, dry-run y rollback.
-* **`kde-tuning-gui.sh`**: Interfaz gráfica interactiva construida sobre `kdialog`, que actúa como wrapper de `setup.sh`.
+* **`setup.sh`**: Orquestador principal (CLI) para instalación, configuración modular, dry-run y rollback.
+* **`lib/`**: Módulos funcionales de configuración (`core.sh`, `distro.sh`, `fstab.sh`, `plasma.sh`, `zsh.sh`, etc.).
 * **`ags/`**: Widget de escritorio Mimosa construido con AGS v3 / Astal (TypeScript + GTK4 CSS, requiere Wayland / layer-shell) y scripts auxiliares (Bash).
 * **`plasma/`**: Archivos de configuración de KDE Plasma (`kdeglobals`, `kwinrc`, `plasma-org.kde.plasma.desktop-appletsrc`, etc.).
 * **`sddm/`**: Configuración del display manager SDDM.
@@ -43,23 +43,19 @@ Dado que este proyecto interactúa directamente con el sistema anfitrión del us
 
 ---
 
-## 3. Arquitectura y Contratos de Integración
+## 3. Arquitectura y Opciones CLI
 
-### Relación entre `setup.sh` y `kde-tuning-gui.sh`
-* `kde-tuning-gui.sh` invoca internamente a `setup.sh` pasando la bandera `--gui-mode`.
-* Si modificas `setup.sh`, **debes preservar los prefijos estructurados de salida** consumidos por la GUI:
-  * `[STEP:start] <mensaje>`
-  * `[STEP:ok] <mensaje>`
-  * `[PROGRESS:<0-100>]`
-  * `[FAIL:<tipo>] <mensaje>`
-  * `[WARN] <mensaje>`
-  * `[INFO] <mensaje>`
-* Las opciones CLI soportadas en `setup.sh` deben mantenerse sincronizadas con los selectores de `kde-tuning-gui.sh`:
-  * `--steps <deps,x11,fstab,repos,fonts,ags,zsh,plasma,session>`
-  * `--dry-run`
-  * `--no-restart`
-  * `--gui-mode`
-  * `--rollback [dir]`
+### Opciones CLI soportadas en `setup.sh`
+* `--steps <deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session>`
+* `--dry-run`
+* `--no-restart`
+* `--conky`
+* `--rollback [dir]`
+* `--help` / `-h`
+
+### Modularización (`lib/`)
+* El código está desacoplado en módulos dentro de `lib/`.
+* Cada módulo es idempotente y no debe contaminar el estado global sin necesidad.
 
 ---
 
@@ -96,9 +92,9 @@ Cuando realices modificaciones en el código de este repositorio:
 1. **Validación de Sintaxis / Linting**:
    ```bash
    bash -n setup.sh
-   bash -n kde-tuning-gui.sh
+   for f in lib/*.sh; do bash -n "$f"; done
    # Si shellcheck está disponible:
-   shellcheck setup.sh kde-tuning-gui.sh
+   shellcheck setup.sh lib/*.sh
    ```
 
 2. **Validación Funcional (Dry-Run)**:
@@ -109,6 +105,3 @@ Cuando realices modificaciones en el código de este repositorio:
    # Probar un módulo modificado específico
    ./setup.sh --steps ags --dry-run
    ```
-
-3. **Verificación de la GUI (Sintaxis y Diálogos)**:
-   * Asegurar que `kdialog` maneje adecuadamente los códigos de retorno y que `--gui-mode` no rompa la barra de progreso.

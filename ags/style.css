@@ -61,6 +61,12 @@ label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
 
 /* ---- rings ---- */
 .ring-icon { font-family: "Hack Nerd Font"; font-size: 16px; color: #d0d0d0; }
+@keyframes battery-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+.ring-icon.charging { color: @green; animation: battery-pulse 2s ease-in-out infinite; }
 .ring-pct { font-family: "Bebas Neue"; font-size: 18px; color: #ffffff; font-feature-settings: "tnum"; }
 .ring-title { font-family: "Bebas Neue"; font-size: 15px; color: @green; margin-top: 2px; }
 .ring-value { font-family: "Bebas Neue"; font-size: 22px; }

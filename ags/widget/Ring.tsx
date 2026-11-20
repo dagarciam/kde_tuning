@@ -26,7 +26,7 @@ export function Ring(props: {
     text?: Accessor<string>
     size?: number
     invertColor?: boolean
-    centerClass?: string
+    centerClass?: string | Accessor<string>
 }) {
     const size = props.size ?? 58
     const stroke = 6

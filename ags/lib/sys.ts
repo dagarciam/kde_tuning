@@ -103,6 +103,10 @@ export function readBattery(dev: string): number {
     return dev ? readNum(`/sys/class/power_supply/${dev}/capacity`) : 0
 }
 
+export function readBatteryStatus(dev: string): string {
+    return dev ? readText(`/sys/class/power_supply/${dev}/status`) : ""
+}
+
 export function readTempC(path: string): number {
     return path ? readNum(path) / 1000 : 0
 }
@@ -158,6 +162,7 @@ export function readOsRelease(): OsRelease {
     const text = readText("/etc/os-release")
     let name = ""
     let id = "linux"
+    let idLike = ""
     for (const line of text.split("\n")) {
         const m = line.match(/^([A-Z_]+)=(.*)$/)
         if (!m) continue
@@ -169,15 +174,18 @@ export function readOsRelease(): OsRelease {
         if (key === "PRETTY_NAME" && !name) name = val
         if (key === "NAME" && (!name || name === "Linux")) name = val
         if (key === "ID") id = val.toLowerCase()
+        if (key === "ID_LIKE") idLike = val.toLowerCase()
     }
     if (!name) name = "Linux"
 
     const s = id.toLowerCase()
     let icon = ""
     if (s.includes("manjaro")) icon = ""
-    else if (s.includes("arch")) icon = ""
+    else if (s.includes("endeavouros")) icon = ""
+    else if (s.includes("garuda")) icon = ""
+    else if (s.includes("cachyos") || s.includes("arch")) icon = ""
     else if (s.includes("fedora")) icon = ""
-    else if (s.includes("ubuntu")) icon = ""
+    else if (s.includes("ubuntu") || s.includes("neon") || s.includes("tuxedo")) icon = ""
     else if (s.includes("debian")) icon = ""
     else if (s.includes("opensuse") || s.includes("suse")) icon = ""
     else if (s.includes("nixos")) icon = ""
@@ -186,6 +194,11 @@ export function readOsRelease(): OsRelease {
     else if (s.includes("alpine")) icon = ""
     else if (s.includes("pop")) icon = ""
     else if (s.includes("mint")) icon = "󰣭"
+    else if (idLike.includes("arch")) icon = ""
+    else if (idLike.includes("fedora") || idLike.includes("rhel")) icon = ""
+    else if (idLike.includes("ubuntu")) icon = ""
+    else if (idLike.includes("debian")) icon = ""
+    else if (idLike.includes("suse")) icon = ""
 
     return { name, id, icon }
 }
