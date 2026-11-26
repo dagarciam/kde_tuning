@@ -282,3 +282,7 @@ show-on-mouse-pos=Meta+V,Meta+V,Mostrar elementos del portapapeles en la posici√
 switch to next activity=none,none,Cambiar a la actividad siguiente
 switch to previous activity=none,none,Cambiar a la actividad anterior
 toggle do not disturb=none,none,Conmutar no molestar
+
+[org.kde.konsole.desktop]
+_k_friendly_name=Konsole
+_launch=Ctrl+Alt+T,none,Konsole

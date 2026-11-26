@@ -9,11 +9,12 @@ Este documento contiene las reglas operativas, directrices de seguridad y detall
 Este repositorio contiene la configuración, scripts de automatización y temas para un entorno de escritorio **Manjaro Linux con KDE Plasma** (X11 / Wayland).
 
 ### Componentes Principales:
-* **`setup.sh`**: Motor principal (CLI) para instalación, configuración modular, dry-run y rollback.
-* **`kde-tuning-gui.sh`**: Interfaz gráfica interactiva construida sobre `kdialog`, que actúa como wrapper de `setup.sh`.
-* **`conky/`**: Configuración y scripts auxiliares del tema Conky Mimosa (Lua, Bash, playerctl).
+* **`setup.sh`**: Orquestador principal (CLI) para instalación, configuración modular, dry-run y rollback.
+* **`lib/`**: Módulos funcionales de configuración (`core.sh`, `distro.sh`, `fstab.sh`, `plasma.sh`, `zsh.sh`, etc.).
+* **`ags/`**: Widget de escritorio Mimosa construido con AGS v3 / Astal (TypeScript + GTK4 CSS, requiere Wayland / layer-shell) y scripts auxiliares (Bash).
 * **`plasma/`**: Archivos de configuración de KDE Plasma (`kdeglobals`, `kwinrc`, `plasma-org.kde.plasma.desktop-appletsrc`, etc.).
 * **`sddm/`**: Configuración del display manager SDDM.
+* **`x11/`**: Configuración de servidor X11 (touchpad libinput, tapping y natural scrolling).
 * **`zsh/`**: Dotfiles para Zsh y temas como Powerlevel10k.
 
 ---
@@ -31,7 +32,7 @@ Dado que este proyecto interactúa directamente con el sistema anfitrión del us
      ./setup.sh --steps <modulo> --dry-run
      ```
 3. **NUNCA reiniciar la sesión de Plasma (`plasmashell`) sin confirmación**:
-   * Si requieres probar la ejecución de un paso real (e.g. `--steps conky`), incluye SIEMPRE `--no-restart` para evitar congelar o reiniciar la sesión gráfica activa del usuario.
+   * Si requieres probar la ejecución de un paso real (e.g. `--steps ags`), incluye SIEMPRE `--no-restart` para evitar congelar o reiniciar la sesión gráfica activa del usuario.
 4. **NO ejecutar comandos destructivos del sistema**:
    * No ejecutes comandos autónomos con `sudo pacman -Syu`, manipulación de `/etc/fstab`, o particionamiento de discos.
 5. **Preservar Backups**:
@@ -42,23 +43,19 @@ Dado que este proyecto interactúa directamente con el sistema anfitrión del us
 
 ---
 
-## 3. Arquitectura y Contratos de Integración
+## 3. Arquitectura y Opciones CLI
 
-### Relación entre `setup.sh` y `kde-tuning-gui.sh`
-* `kde-tuning-gui.sh` invoca internamente a `setup.sh` pasando la bandera `--gui-mode`.
-* Si modificas `setup.sh`, **debes preservar los prefijos estructurados de salida** consumidos por la GUI:
-  * `[STEP:start] <mensaje>`
-  * `[STEP:ok] <mensaje>`
-  * `[PROGRESS:<0-100>]`
-  * `[FAIL:<tipo>] <mensaje>`
-  * `[WARN] <mensaje>`
-  * `[INFO] <mensaje>`
-* Las opciones CLI soportadas en `setup.sh` deben mantenerse sincronizadas con los selectores de `kde-tuning-gui.sh`:
-  * `--steps <deps,x11,fstab,repos,fonts,conky,zsh,plasma,session>`
-  * `--dry-run`
-  * `--no-restart`
-  * `--gui-mode`
-  * `--rollback [dir]`
+### Opciones CLI soportadas en `setup.sh`
+* `--steps <deps,wayland,fstab,repos,fonts,ags,conky,zsh,plasma,session>`
+* `--dry-run`
+* `--no-restart`
+* `--conky`
+* `--rollback [dir]`
+* `--help` / `-h`
+
+### Modularización (`lib/`)
+* El código está desacoplado en módulos dentro de `lib/`.
+* Cada módulo es idempotente y no debe contaminar el estado global sin necesidad.
 
 ---
 
@@ -76,8 +73,8 @@ Dado que este proyecto interactúa directamente con el sistema anfitrión del us
 4. **Manejo de Errores y Logs**:
    * Cada corrida genera logs en `/tmp/kde-tuning-<timestamp>.log`.
    * Centraliza los mensajes de error a través de las funciones `error_exit` y `log_warn`.
-5. **Scripts Auxiliares (Conky / Playerctl)**:
-   * Los scripts en `conky/Mimosa/scripts/` se ejecutan continuamente en bucle o a intervalos cortos por Conky. Deben ser ligeros, verificar dependencias (e.g. `command -v playerctl`) y silenciar errores hacia stderr para no saturar los logs.
+5. **Scripts Auxiliares (AGS / Playerctl)**:
+   * Los scripts en `ags/scripts/` se ejecutan a intervalos cortos desde el widget AGS. Deben ser ligeros, verificar dependencias (e.g. `command -v playerctl`) y silenciar errores hacia stderr para no saturar los logs.
 6. **Scripts y Herramientas en Python**:
    * Cualquier script o comando en Python debe invocarse explícitamente a través del virtualenv local:
      ```bash
@@ -95,9 +92,9 @@ Cuando realices modificaciones en el código de este repositorio:
 1. **Validación de Sintaxis / Linting**:
    ```bash
    bash -n setup.sh
-   bash -n kde-tuning-gui.sh
+   for f in lib/*.sh; do bash -n "$f"; done
    # Si shellcheck está disponible:
-   shellcheck setup.sh kde-tuning-gui.sh
+   shellcheck setup.sh lib/*.sh
    ```
 
 2. **Validación Funcional (Dry-Run)**:
@@ -106,8 +103,5 @@ Cuando realices modificaciones en el código de este repositorio:
    ./setup.sh --dry-run
 
    # Probar un módulo modificado específico
-   ./setup.sh --steps conky --dry-run
+   ./setup.sh --steps ags --dry-run
    ```
-
-3. **Verificación de la GUI (Sintaxis y Diálogos)**:
-   * Asegurar que `kdialog` maneje adecuadamente los códigos de retorno y que `--gui-mode` no rompa la barra de progreso.

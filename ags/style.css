@@ -1,0 +1,145 @@
+/* Mimosa (AGS) — port of the Conky Mimosa theme. GTK4 CSS. */
+@define-color green #32d74c;
+@define-color red #ff4539;
+
+window.mimosa { background: transparent; }
+
+label { color: #ffffff; font-family: "Abel", "Inter", sans-serif; }
+.small { font-size: 11px; }
+.dim { opacity: 0.55; font-size: 9px; }
+
+/* ---- header ---- */
+.clock-time { font-family: "Inter"; font-weight: 200; font-size: 64px; margin-left: 4px; }
+.clock-date { font-family: "Abel"; font-size: 18px; margin-left: 6px; margin-bottom: 4px; }
+
+/* ---- cards ---- */
+.card {
+    background-color: rgba(28, 29, 38, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 14px;
+}
+
+.card-title { font-weight: bold; font-size: 18px; margin-bottom: 4px; }
+
+/* ---- system ---- */
+.card.system {
+    padding: 12px 14px;
+}
+
+.sys-distro {
+    font-weight: bold;
+    font-size: 15px;
+    font-family: "Inter", "Abel", sans-serif;
+    color: #ffffff;
+}
+
+.sys-uptime {
+    font-family: "Inter", "Abel", sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: @green;
+}
+
+.sys-kernel {
+    font-family: "Inter", "Abel", sans-serif;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+
+/* ---- weather ---- */
+.weather-icon { font-family: "feather"; font-size: 32px; }
+.weather-temp { font-family: "Bebas Neue"; font-size: 28px; }
+.weather-city { color: @red; font-weight: bold; font-size: 17px; margin-top: 4px; }
+.weather-city { color: @red; }
+.weather-desc { font-size: 15px; }
+
+/* ---- network ---- */
+.net-ssid { font-family: "Hack Nerd Font"; font-size: 12px; margin-bottom: 4px; }
+.spark { min-height: 24px; }
+
+/* ---- rings ---- */
+.ring-icon { font-family: "Hack Nerd Font"; font-size: 16px; color: #d0d0d0; }
+@keyframes battery-pulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+.ring-icon.charging { color: @green; animation: battery-pulse 2s ease-in-out infinite; }
+.ring-pct { font-family: "Bebas Neue"; font-size: 18px; color: #ffffff; font-feature-settings: "tnum"; }
+.ring-title { font-family: "Bebas Neue"; font-size: 15px; color: @green; margin-top: 2px; }
+.ring-value { font-family: "Bebas Neue"; font-size: 22px; }
+
+/* ---- cpu ---- */
+.cpu-icon { font-family: "Hack Nerd Font"; font-size: 14px; color: @green; margin-right: 8px; }
+.cpu-name { font-weight: bold; font-size: 16px; }
+.cpu-temp { font-family: "Bebas Neue"; font-size: 18px; color: @green; margin-right: 8px; }
+.cpu-freq { font-family: "Bebas Neue"; font-size: 18px; }
+.core-title { font-family: "Bebas Neue"; font-size: 12px; color: @green; opacity: 0.9; margin-bottom: 2px; }
+.core-label { font-family: "Bebas Neue"; font-size: 13px; min-width: 26px; }
+.core-pct { font-family: "Bebas Neue"; font-size: 12px; opacity: 0.7; min-width: 28px; }
+.ring-value, .core-pct { font-feature-settings: "tnum"; }
+
+/* ---- bars ---- */
+levelbar trough { min-height: 6px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.12); border: none; padding: 0; }
+levelbar block.filled,
+levelbar block.filled.low,
+levelbar block.filled.high,
+levelbar block.filled.full { min-height: 6px; border-radius: 3px; background-color: @green; border: none; }
+levelbar block.empty { background-color: transparent; border: none; }
+.core-bar.warn block.filled,
+.core-bar.warn block.filled.low,
+.core-bar.warn block.filled.high,
+.core-bar.warn block.filled.full { background-color: #ff9f0a; }
+.core-bar.crit block.filled,
+.core-bar.crit block.filled.low,
+.core-bar.crit block.filled.high,
+.core-bar.crit block.filled.full { background-color: #ff453a; }
+.disk-bar trough { min-height: 12px; border-radius: 6px; }
+.disk-bar block.filled,
+.disk-bar block.filled.low,
+.disk-bar block.filled.high,
+.disk-bar block.filled.full { min-height: 12px; border-radius: 6px; background-color: @red; }
+.free { color: @green; }
+
+/* ---- media ---- */
+.cover {
+    border-radius: 29px;
+    min-width: 58px;
+    min-height: 58px;
+    background-color: transparent;
+}
+.cover-img {
+    border-radius: 29px;
+}
+.media-artist {
+    color: @green;
+    font-weight: bold;
+    font-size: 15px;
+    font-family: "Abel", sans-serif;
+}
+.media-title {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 16px;
+    font-family: "Abel", sans-serif;
+}
+.media-bar trough {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.12);
+    border: none;
+    padding: 0;
+}
+.media-bar block.filled {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: @green;
+    border: none;
+}
+.media-bar block.empty {
+    background-color: transparent;
+    border: none;
+}
+

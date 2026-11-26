@@ -1746,7 +1746,22 @@
     # If cache is older than 30 mins or doesn't exist, update it in background
     if (( current_time - last_update > 1800 )) || [[ ! -f "$cache_file" ]]; then
       # Run check in background to avoid blocking the prompt
-      (pamac checkupdates -a | wc -l > "$cache_file" &)
+      if command -v pamac &>/dev/null; then
+        (pamac checkupdates -a 2>/dev/null | wc -l > "$cache_file" &)
+      elif command -v pacman &>/dev/null; then
+        ({
+          command -v checkupdates &>/dev/null && checkupdates 2>/dev/null
+          if command -v yay &>/dev/null; then yay -Qua 2>/dev/null
+          elif command -v paru &>/dev/null; then paru -Qua 2>/dev/null
+          fi
+        } | wc -l > "$cache_file" &)
+      elif command -v dnf &>/dev/null; then
+        (dnf -q check-update 2>/dev/null | grep -cE '^\S+\s+\S+\s+\S+$' > "$cache_file" &)
+      elif command -v apt &>/dev/null; then
+        (apt list --upgradable 2>/dev/null | grep -c '/' > "$cache_file" &)
+      elif command -v zypper &>/dev/null; then
+        (zypper -q list-updates 2>/dev/null | grep -c '^v ' > "$cache_file" &)
+      fi
     fi
 
     if [[ "$count" != "0" && -n "$count" ]]; then
